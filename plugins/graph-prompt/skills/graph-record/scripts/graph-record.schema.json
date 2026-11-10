@@ -1,0 +1,2852 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph-record.schema.json",
+  "title": "Graph run record",
+  "description": "One run directory: graph.yaml, checks.yaml, progress.yaml, framing.yaml, rules.yaml, lessons.yaml. Each file is a top-level key. Cross-file constraints that JSON Schema cannot express are listed under x-crossfile and enforced by validate.py.",
+  "type": "object",
+  "required": [
+    "graph",
+    "checks",
+    "progress",
+    "framing",
+    "rules"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "graph": {
+      "$ref": "#/$defs/graph"
+    },
+    "checks": {
+      "$ref": "#/$defs/checks"
+    },
+    "progress": {
+      "$ref": "#/$defs/progress"
+    },
+    "framing": {
+      "$ref": "#/$defs/framing"
+    },
+    "rules": {
+      "$ref": "#/$defs/rules"
+    },
+    "lessons": {
+      "$ref": "#/$defs/lessons"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "tier": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subagent_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^\\S+$",
+      "description": "Opaque identifier returned by the runtime; preserve verbatim (Claude hex, Codex UUID or task path)."
+    },
+    "section": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nonempty": {
+      "type": "string",
+      "minLength": 1
+    },
+    "check_type": {
+      "enum": [
+        "exec",
+        "inspect",
+        "review"
+      ]
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "fail",
+        "unresolved",
+        "void",
+        "dissent",
+        "escalated"
+      ]
+    },
+    "tier_rule_line": {
+      "enum": [
+        "needs_two_or_more_domains",
+        "content_merge",
+        "review_only_check",
+        "reads_three_or_more_upstream"
+      ]
+    },
+    "own_gate_condition": {
+      "enum": [
+        "writes_existing_file",
+        "touches_multiple_files",
+        "output_consumed_by_two_or_more",
+        "irreversible_step"
+      ]
+    },
+    "check": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "content",
+        "fails_when",
+        "exec_available"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "$ref": "#/$defs/check_type"
+        },
+        "content": {
+          "$ref": "#/$defs/nonempty",
+          "description": "exec: the command. inspect: the property. review: the property under review."
+        },
+        "fails_when": {
+          "$ref": "#/$defs/nonempty"
+        },
+        "exec_available": {
+          "enum": [
+            "yes",
+            "no",
+            "partial"
+          ],
+          "description": "Decided per check at design time. yes: a program returns the fails_when verdict (type exec). no: no program can return it; type is inspect or review and node.unavailable.tried records each program considered and what it returned. partial: a program flags candidates but cannot return the verdict for them (type exec); every flagged item is adjudicated by a review gate recorded as a <id>-residue row (X28)"
+        },
+        "residue": {
+          "$ref": "#/$defs/nonempty",
+          "description": "exec_available partial only. The residue review's real artifact is the program's flagged list; its mutant is that list with one real violation added (a sentence that breaks fails_when, placed with a false location); the reviewer receives both unlabeled in random order per layer_5_gates and must fail the mutant and pass the list. This field states, in one line, how the adjudication is briefed (the check text the reviewer judges against)"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "exec_available": {
+                "const": "partial"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "residue"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "exec_available": {
+                "enum": [
+                  "yes",
+                  "no"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "residue": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "exec_available": {
+                "const": "no"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "inspect",
+                  "review"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "exec_available": {
+                "enum": [
+                  "yes",
+                  "partial"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "const": "exec"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "graph": {
+      "type": "object",
+      "required": [
+        "nodes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": [
+        "id",
+        "purpose",
+        "does",
+        "shape",
+        "split_reason",
+        "reads",
+        "writes",
+        "needs",
+        "kind",
+        "checks",
+        "rules"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "purpose": {
+          "$ref": "#/$defs/nonempty"
+        },
+        "does": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": [
+              "imperative",
+              "produces"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "imperative": {
+                "$ref": "#/$defs/nonempty"
+              },
+              "produces": {
+                "$ref": "#/$defs/section"
+              }
+            }
+          }
+        },
+        "shape": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/section"
+          },
+          "uniqueItems": true
+        },
+        "split_reason": {
+          "$ref": "#/$defs/split_reason"
+        },
+        "reads": {
+          "type": "object",
+          "required": [
+            "sources",
+            "upstream"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "sources": {
+              "type": "boolean",
+              "description": "true when the node reads {{SOURCES}}"
+            },
+            "upstream": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "node",
+                  "sections"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "node": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "sections": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/section"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "writes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/path"
+          },
+          "uniqueItems": true
+        },
+        "needs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonempty"
+          },
+          "description": "empty array means generic"
+        },
+        "kind": {
+          "enum": [
+            "judgment",
+            "code"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/check"
+          }
+        },
+        "rules": {
+          "$ref": "#/$defs/node_rules"
+        },
+        "model": {
+          "$ref": "#/$defs/model"
+        },
+        "reviewer_tier": {
+          "$ref": "#/$defs/tier"
+        },
+        "code": {
+          "type": "object",
+          "required": [
+            "command",
+            "expected_exit",
+            "gate"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "command": {
+              "$ref": "#/$defs/nonempty"
+            },
+            "expected_exit": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "gate": {
+              "$ref": "#/$defs/id",
+              "description": "the id of the node's exec check that gates it; a node with several exec checks names one"
+            }
+          }
+        },
+        "unavailable": {
+          "type": "object",
+          "required": [
+            "tried"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tried": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "what",
+                  "returned"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "what": {
+                    "$ref": "#/$defs/nonempty"
+                  },
+                  "returned": {
+                    "$ref": "#/$defs/nonempty"
+                  }
+                }
+              }
+            }
+          },
+          "description": "Programs considered and what each returned, for every check on this node with exec_available no; filled at design time; an analysis of what a program would return is enough when running it would cost a node run"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "code"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "code"
+            ],
+            "not": {
+              "required": [
+                "model"
+              ]
+            },
+            "properties": {
+              "rules": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "deterministic",
+                      "rule_encoded"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "judgment"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "model"
+            ],
+            "not": {
+              "required": [
+                "code"
+              ]
+            },
+            "properties": {
+              "rules": {
+                "properties": {
+                  "kind": {
+                    "const": "judgment"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "rules": {
+                "properties": {
+                  "kind": {
+                    "const": "rule_encoded"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "minItems": 2
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "checks": {
+                "contains": {
+                  "properties": {
+                    "exec_available": {
+                      "const": "no"
+                    }
+                  },
+                  "required": [
+                    "exec_available"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "unavailable"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "checks": {
+                "contains": {
+                  "properties": {
+                    "type": {
+                      "const": "review"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ]
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "reviewer_tier"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "code"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "contains": {
+                  "properties": {
+                    "type": {
+                      "const": "exec"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "split_reason": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "inputs_differ",
+            "parallel",
+            "own_gate",
+            "context",
+            "single_node"
+          ]
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "condition": {
+          "$ref": "#/$defs/own_gate_condition"
+        },
+        "risk": {
+          "$ref": "#/$defs/id"
+        },
+        "what": {
+          "$ref": "#/$defs/nonempty"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "inputs_differ",
+                  "parallel"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "nodes"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "own_gate"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "condition",
+              "risk"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "context"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "what"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "single_node"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "nodes": false,
+              "condition": false,
+              "risk": false,
+              "what": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "own_gate"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "nodes": false,
+              "what": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "context"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "nodes": false,
+              "condition": false,
+              "risk": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "inputs_differ"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "condition": false,
+              "risk": false,
+              "what": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "parallel"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "condition": false,
+              "risk": false,
+              "what": false
+            }
+          }
+        }
+      ]
+    },
+    "node_rules": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "deterministic",
+            "rule_encoded",
+            "judgment"
+          ]
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonempty"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "rule_encoded"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "rules"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "deterministic",
+                  "judgment"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "rules": false
+            }
+          }
+        }
+      ]
+    },
+    "model": {
+      "type": "object",
+      "required": [
+        "tier",
+        "tier_rule",
+        "escalations"
+      ],
+      "additionalProperties": false,
+      "description": "tier index = len(tier_rule) + escalations, capped at the last index of the MODELS ladder (index 0 = cheapest); validate.py checks the arithmetic (X08)",
+      "properties": {
+        "tier": {
+          "$ref": "#/$defs/tier"
+        },
+        "tier_rule": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tier_rule_line"
+          },
+          "uniqueItems": true,
+          "description": "the lines that fired at dispatch; frozen — a check_revision after dispatch does not rewrite them (X25 exempts a node with a check_revision decision)"
+        },
+        "escalations": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "count of tier-up retries (hypothesis cause under_capacity; in prompt v3.0 this is the tier-up form of cause (a); in v2.x it was cause (d))"
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "required": [
+        "rows"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/row"
+          }
+        }
+      }
+    },
+    "row": {
+      "type": "object",
+      "required": [
+        "subject",
+        "attempt",
+        "requirement",
+        "type",
+        "isolation",
+        "fails_when",
+        "red_evidence",
+        "verdict",
+        "evidence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "subject": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "node",
+                "acceptance",
+                "integration"
+              ]
+            },
+            "node": {
+              "$ref": "#/$defs/id"
+            },
+            "check": {
+              "$ref": "#/$defs/id"
+            },
+            "item": {
+              "$ref": "#/$defs/id",
+              "description": "the {{CHECKS}} item id, for kind acceptance"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "node"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "node",
+                  "check"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "acceptance"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "item"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "node"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "item": false
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "acceptance"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "node": false,
+                  "check": false
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "integration"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "node": false,
+                  "check": false,
+                  "item": false
+                }
+              }
+            }
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requirement": {
+          "$ref": "#/$defs/nonempty"
+        },
+        "type": {
+          "$ref": "#/$defs/check_type"
+        },
+        "isolation": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "fresh_subagent",
+                "same_context_degraded",
+                "na_exec",
+                "na_inspect",
+                "not_run"
+              ],
+              "description": "na_code is reserved for the well-formedness audit entry in progress; rows never use it"
+            },
+            "subagent": {
+              "$ref": "#/$defs/subagent_id"
+            },
+            "reason": {
+              "$ref": "#/$defs/nonempty"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "fresh_subagent"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "subagent"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "not_run"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          ]
+        },
+        "fails_when": {
+          "$ref": "#/$defs/nonempty"
+        },
+        "red_evidence": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "assertion_failure",
+                "mutant",
+                "minimal_inspect",
+                "checks_baseline",
+                "not_run"
+              ]
+            },
+            "test_path": {
+              "$ref": "#/$defs/path"
+            },
+            "summary": {
+              "$ref": "#/$defs/nonempty"
+            },
+            "stub_path": {
+              "$ref": "#/$defs/path"
+            },
+            "variant_path": {
+              "$ref": "#/$defs/path"
+            },
+            "mutation": {
+              "$ref": "#/$defs/nonempty",
+              "description": "one property named in fails_when"
+            },
+            "reason": {
+              "$ref": "#/$defs/nonempty"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "assertion_failure"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "test_path",
+                  "summary"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "mutant"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "variant_path",
+                  "mutation"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "checks_baseline"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "summary"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "not_run"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          ]
+        },
+        "verdict": {
+          "$ref": "#/$defs/verdict"
+        },
+        "evidence": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "exec",
+                "location",
+                "excerpt",
+                "carried",
+                "not_run"
+              ]
+            },
+            "command": {
+              "$ref": "#/$defs/nonempty"
+            },
+            "expected_exit": {
+              "type": "integer"
+            },
+            "actual_exit": {
+              "type": "integer"
+            },
+            "output": {
+              "type": "string"
+            },
+            "path": {
+              "$ref": "#/$defs/path"
+            },
+            "location": {
+              "$ref": "#/$defs/nonempty"
+            },
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "section",
+                  "verdict",
+                  "excerpt"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "section": {
+                    "$ref": "#/$defs/section"
+                  },
+                  "verdict": {
+                    "enum": [
+                      "pass",
+                      "fail"
+                    ]
+                  },
+                  "excerpt": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "from_node": {
+              "$ref": "#/$defs/id"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "reason": {
+              "$ref": "#/$defs/nonempty"
+            },
+            "from_check": {
+              "$ref": "#/$defs/id",
+              "description": "the carried node check (required by X11 when from_node has more than one check and no code.gate)"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "exec"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "command",
+                  "expected_exit",
+                  "actual_exit",
+                  "output"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "location"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "path",
+                  "location"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "excerpt"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "sections"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "carried"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "from_node",
+                  "sha256"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "not_run"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          ]
+        },
+        "exercises": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "description": "rules.yaml ids; empty means acceptance only. Acceptance rows only."
+        },
+        "dissent": {
+          "type": "object",
+          "required": [
+            "reviewer_excerpt",
+            "section",
+            "reason"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "reviewer_excerpt": {
+              "$ref": "#/$defs/nonempty"
+            },
+            "section": {
+              "$ref": "#/$defs/section"
+            },
+            "reason": {
+              "$ref": "#/$defs/nonempty"
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "exec"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "isolation": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "na_exec",
+                      "not_run"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "inspect"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "isolation": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "na_inspect",
+                      "not_run"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "review"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "isolation": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "fresh_subagent",
+                      "same_context_degraded",
+                      "not_run"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "inspect"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "red_evidence": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "minimal_inspect",
+                      "not_run"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "exec"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "red_evidence": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "assertion_failure",
+                      "checks_baseline",
+                      "not_run"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "review"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "red_evidence": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "mutant",
+                      "not_run"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "pass"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "red_evidence": {
+                "properties": {
+                  "kind": {
+                    "not": {
+                      "const": "not_run"
+                    }
+                  }
+                }
+              },
+              "evidence": {
+                "properties": {
+                  "kind": {
+                    "not": {
+                      "const": "not_run"
+                    }
+                  }
+                }
+              },
+              "isolation": {
+                "properties": {
+                  "kind": {
+                    "not": {
+                      "enum": [
+                        "not_run",
+                        "same_context_degraded"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "isolation": {
+                "properties": {
+                  "kind": {
+                    "const": "not_run"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "const": "unresolved"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "red_evidence": {
+                "properties": {
+                  "kind": {
+                    "const": "not_run"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "const": "unresolved"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "evidence": {
+                "properties": {
+                  "kind": {
+                    "const": "not_run"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "const": "unresolved"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "isolation": {
+                "properties": {
+                  "kind": {
+                    "const": "same_context_degraded"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "verdict": {
+                "const": "unresolved"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "dissent"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "dissent"
+            ],
+            "properties": {
+              "type": {
+                "const": "review"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "subject": {
+                "properties": {
+                  "kind": {
+                    "const": "acceptance"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "exercises"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "subject": {
+                "properties": {
+                  "kind": {
+                    "const": "integration"
+                  }
+                }
+              },
+              "type": {
+                "const": "exec"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "red_evidence": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "checks_baseline",
+                      "not_run"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "evidence": {
+                "properties": {
+                  "kind": {
+                    "const": "exec"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "const": "exec"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "evidence": {
+                "properties": {
+                  "kind": {
+                    "const": "excerpt"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "const": "review"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "progress": {
+      "type": "object",
+      "required": [
+        "enforcement",
+        "graph",
+        "outputs",
+        "decisions",
+        "assumptions",
+        "open_issues",
+        "subagents",
+        "audits",
+        "hypotheses",
+        "usage",
+        "next_action"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enforcement": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "tooling",
+                "instruction_only"
+              ]
+            },
+            "rule": {
+              "$ref": "#/$defs/nonempty"
+            },
+            "verified": {
+              "$ref": "#/$defs/path"
+            }
+          },
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "tooling"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "rule",
+              "verified"
+            ]
+          }
+        },
+        "graph": {
+          "type": "object",
+          "required": [
+            "accepted",
+            "running",
+            "failed",
+            "blocked",
+            "dissent",
+            "escalated",
+            "not_started"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "accepted": {
+              "$ref": "#/$defs/idlist"
+            },
+            "running": {
+              "$ref": "#/$defs/idlist"
+            },
+            "failed": {
+              "$ref": "#/$defs/idlist"
+            },
+            "blocked": {
+              "$ref": "#/$defs/idlist"
+            },
+            "dissent": {
+              "$ref": "#/$defs/idlist"
+            },
+            "escalated": {
+              "$ref": "#/$defs/idlist"
+            },
+            "not_started": {
+              "$ref": "#/$defs/idlist"
+            }
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/decision"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "assumed"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "assumed": {
+                "$ref": "#/$defs/nonempty"
+              }
+            }
+          }
+        },
+        "open_issues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/open_issue"
+          }
+        },
+        "unchecked_rules": {
+          "type": "array",
+          "description": "rules (by id) that no check exercises, listed before approval with the reason, and reported at delivery (X32)",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "reason"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "reason": {
+                "$ref": "#/$defs/nonempty"
+              }
+            }
+          }
+        },
+        "subagents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "role",
+              "tier"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/subagent_id"
+              },
+              "role": {
+                "enum": [
+                  "builder",
+                  "reviewer",
+                  "evidence_audit"
+                ]
+              },
+              "node": {
+                "$ref": "#/$defs/id"
+              },
+              "tier": {
+                "$ref": "#/$defs/tier"
+              },
+              "phase": {
+                "enum": [
+                  "integration",
+                  "delivery",
+                  "audit"
+                ],
+                "description": "set instead of node for a reviewer or auditor dispatched outside any node"
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "role": {
+                      "enum": [
+                        "builder",
+                        "reviewer"
+                      ]
+                    }
+                  },
+                  "not": {
+                    "required": [
+                      "phase"
+                    ]
+                  }
+                },
+                "then": {
+                  "required": [
+                    "node"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "required": [
+                    "phase"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "node": false
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "role": {
+                      "const": "builder"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "phase": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "audits": {
+          "type": "object",
+          "required": [
+            "wellformed",
+            "evidence"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "wellformed": {
+              "type": "object",
+              "required": [
+                "exit_code",
+                "isolation"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "exit_code": {
+                  "type": "integer"
+                },
+                "isolation": {
+                  "const": "na_code"
+                },
+                "first_failure": {
+                  "type": "string"
+                }
+              }
+            },
+            "evidence": {
+              "type": "object",
+              "required": [
+                "isolation",
+                "rows",
+                "miscited",
+                "unfound",
+                "verdict",
+                "notes"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "isolation": {
+                  "type": "object",
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "fresh_subagent",
+                        "same_context_degraded",
+                        "not_run"
+                      ]
+                    },
+                    "subagent": {
+                      "$ref": "#/$defs/subagent_id"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "fresh_subagent"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "subagent"
+                    ]
+                  }
+                },
+                "rows": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "miscited": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "unfound": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "verdict": {
+                  "enum": [
+                    "pass",
+                    "fail",
+                    "not_run"
+                  ]
+                },
+                "notes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "hypotheses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "node",
+              "before_attempt",
+              "cause",
+              "disconfirmation"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "node": {
+                "$ref": "#/$defs/id"
+              },
+              "before_attempt": {
+                "type": "integer",
+                "minimum": 2
+              },
+              "cause": {
+                "enum": [
+                  "brief",
+                  "inputs",
+                  "tool_access",
+                  "capacity",
+                  "builder_error",
+                  "upstream_field",
+                  "check_wrong",
+                  "under_capacity",
+                  "source_defect"
+                ]
+              },
+              "disconfirmation": {
+                "$ref": "#/$defs/nonempty"
+              }
+            }
+          }
+        },
+        "usage": {
+          "type": "object",
+          "required": [
+            "limit",
+            "unit",
+            "consumed"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "limit": {
+              "type": "number"
+            },
+            "unit": {
+              "enum": [
+                "node_runs",
+                "minutes",
+                "cost"
+              ]
+            },
+            "consumed": {
+              "type": "number",
+              "minimum": 0
+            },
+            "by_tier": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
+            "reserve_runs": {
+              "type": "array",
+              "description": "runs spent from the reserve (the last tenth of limit, rounded up) or past it: a one-item correction return or its re-gate (node + attempt >= 2), the integration node's run (attempt >= 1, no node), or an audit (name, no attempt). Audits are the only runs that may take consumed past limit (X30)",
+              "items": {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "node": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "kind": {
+                    "enum": [
+                      "correction_return",
+                      "re_gate",
+                      "integration",
+                      "audit"
+                    ]
+                  },
+                  "audit": {
+                    "enum": [
+                      "wellformed",
+                      "evidence"
+                    ]
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "correction_return",
+                            "re_gate"
+                          ]
+                        }
+                      }
+                    },
+                    "then": {
+                      "required": [
+                        "node",
+                        "attempt"
+                      ],
+                      "properties": {
+                        "attempt": {
+                          "minimum": 2
+                        },
+                        "audit": false
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "kind": {
+                          "const": "integration"
+                        }
+                      }
+                    },
+                    "then": {
+                      "required": [
+                        "attempt"
+                      ],
+                      "properties": {
+                        "node": false,
+                        "audit": false
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "kind": {
+                          "const": "audit"
+                        }
+                      }
+                    },
+                    "then": {
+                      "required": [
+                        "audit"
+                      ],
+                      "properties": {
+                        "node": false,
+                        "attempt": false
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "lead_tokens": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        },
+        "next_action": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "node",
+                "delivery",
+                "blocked"
+              ]
+            },
+            "node": {
+              "$ref": "#/$defs/id"
+            },
+            "issue": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "node"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "node"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "blocked"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "issue"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "idlist": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/id"
+      },
+      "uniqueItems": true
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "kind",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "check_revision",
+            "approval_default",
+            "model_change",
+            "integration_conflict",
+            "threshold_revision",
+            "sources_changed",
+            "rescan",
+            "ruling",
+            "other"
+          ],
+          "description": "ruling: an interpretation the lead adds to a brief (of an input fact, a check term, or a source), recorded before dispatch with node or phase; its reason holds the reading and the text it applies to"
+        },
+        "node": {
+          "$ref": "#/$defs/id"
+        },
+        "was": {
+          "type": "string"
+        },
+        "now": {
+          "type": "string"
+        },
+        "reason": {
+          "$ref": "#/$defs/nonempty"
+        },
+        "phase": {
+          "enum": [
+            "integration",
+            "delivery",
+            "audit"
+          ],
+          "description": "set instead of node for a decision taken outside any node"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "check_revision",
+                  "model_change",
+                  "threshold_revision"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "was",
+              "now"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "check_revision",
+                  "model_change"
+                ]
+              }
+            },
+            "not": {
+              "required": [
+                "phase"
+              ]
+            }
+          },
+          "then": {
+            "required": [
+              "node"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "phase"
+            ]
+          },
+          "then": {
+            "properties": {
+              "node": false
+            }
+          }
+        }
+      ]
+    },
+    "open_issue": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "text",
+        "resolves"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "failure",
+            "blocker",
+            "source_defect",
+            "uncertainty"
+          ]
+        },
+        "text": {
+          "$ref": "#/$defs/nonempty"
+        },
+        "tried": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "what",
+              "returned"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "what": {
+                "$ref": "#/$defs/nonempty"
+              },
+              "returned": {
+                "$ref": "#/$defs/nonempty"
+              }
+            }
+          }
+        },
+        "file": {
+          "$ref": "#/$defs/path"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rule": {
+          "$ref": "#/$defs/nonempty"
+        },
+        "unblock": {
+          "$ref": "#/$defs/nonempty"
+        },
+        "resolves": {
+          "$ref": "#/$defs/nonempty",
+          "description": "what would resolve it"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "blocker"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "tried"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "source_defect"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "file",
+              "line",
+              "rule",
+              "unblock"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "failure"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "file": false,
+              "line": false,
+              "rule": false,
+              "unblock": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "uncertainty"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "file": false,
+              "line": false,
+              "rule": false,
+              "unblock": false,
+              "tried": false
+            }
+          }
+        }
+      ]
+    },
+    "framing": {
+      "type": "object",
+      "required": [
+        "problem",
+        "goals",
+        "constraints",
+        "assumptions",
+        "unknowns",
+        "risks"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "problem": {
+          "$ref": "#/$defs/nonempty"
+        },
+        "goals": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonempty"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonempty"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "text",
+              "assumed"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "text": {
+                "$ref": "#/$defs/nonempty"
+              },
+              "assumed": {
+                "$ref": "#/$defs/nonempty"
+              }
+            }
+          }
+        },
+        "unknowns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "text",
+              "changes_outcome",
+              "disposition"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "text": {
+                "$ref": "#/$defs/nonempty"
+              },
+              "changes_outcome": {
+                "type": "boolean"
+              },
+              "disposition": {
+                "enum": [
+                  "asked",
+                  "assumed",
+                  "pending"
+                ],
+                "description": "asked: put to the person and answered (answer required). assumed: not asked; the assumption is stated in answer-less form by the assumptions list or here. pending: put to the person, answer not yet received — legal only while progress.next_action.kind is blocked (X29)"
+              },
+              "answer": {
+                "type": "string"
+              },
+              "issue": {
+                "$ref": "#/$defs/id",
+                "description": "pending only: the open_issues id the question is carried by"
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "disposition": {
+                      "const": "asked"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "answer"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "disposition": {
+                      "const": "pending"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "issue"
+                  ],
+                  "properties": {
+                    "answer": false
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "disposition": {
+                      "const": "assumed"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "issue": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "text",
+              "guarded_by"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "text": {
+                "$ref": "#/$defs/nonempty"
+              },
+              "guarded_by": {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "gate",
+                      "accepted"
+                    ]
+                  },
+                  "node": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "check": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "reason": {
+                    "$ref": "#/$defs/nonempty"
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "kind": {
+                          "const": "gate"
+                        }
+                      }
+                    },
+                    "then": {
+                      "required": [
+                        "node",
+                        "check"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "kind": {
+                          "const": "accepted"
+                        }
+                      }
+                    },
+                    "then": {
+                      "required": [
+                        "reason"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "kind": {
+                          "const": "gate"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "reason": false
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "kind": {
+                          "const": "accepted"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "node": false,
+                        "check": false
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "required": [
+        "rules"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "spec",
+              "rule",
+              "section",
+              "quote"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "spec": {
+                "$ref": "#/$defs/path"
+              },
+              "rule": {
+                "$ref": "#/$defs/nonempty"
+              },
+              "section": {
+                "type": "string",
+                "description": "section of the spec; empty string means the spec is unsectioned"
+              },
+              "quote": {
+                "$ref": "#/$defs/nonempty"
+              },
+              "concerns": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "deliverable",
+                    "graph",
+                    "checks",
+                    "progress"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "lessons": {
+      "type": "object",
+      "required": [
+        "entries"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "node",
+              "evidence",
+              "tier",
+              "tier_rule",
+              "attempt",
+              "confirmed_in",
+              "promoted"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "node": {
+                "$ref": "#/$defs/id"
+              },
+              "evidence": {
+                "$ref": "#/$defs/nonempty"
+              },
+              "tier": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tier_rule": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/tier_rule_line"
+                }
+              },
+              "attempt": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "confirmed_in": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "promoted": {
+                "type": "boolean"
+              }
+            },
+            "if": {
+              "properties": {
+                "promoted": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "confirmed_in": {
+                  "minimum": 2
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-crossfile": [
+    "X01 every graph node has, for EACH of its checks, a checks row with subject.kind=node, subject.check=that check, attempt=1",
+    "X02 every reads.upstream.node exists; every reads.upstream.sections item is in that node's shape, compared as exact strings",
+    "X03 every split_reason.risk exists in framing.risks; every split_reason.nodes item exists",
+    "X04 every framing.risks[].guarded_by gate names an existing node and one of its checks",
+    "X05 every isolation.subagent and audits.evidence.isolation.subagent exists in progress.subagents",
+    "X06 for each node, no subagent is both builder and reviewer",
+    "X07 reviewer_tier index >= model.tier index on the MODELS ladder",
+    "X08 model.tier index == min(len(tier_rule) + escalations, last index) on the MODELS ladder, index 0 = cheapest; requires --models, otherwise a finding",
+    "X09 every checks row exercises[] id exists in rules",
+    "X10 progress.graph lists partition the node id set exactly once",
+    "X11 (sha compared on the newest carried row per subject; an earlier attempt's carry is history) a carried evidence row's sha256 equals the --artifacts entry for from_node; the carried check is evidence.from_check, else from_node's code.gate, else its only check (several checks with no from_check is a finding); that check's LATEST row has verdict pass; a missing --artifacts entry is a finding",
+    "X12 the whole word 'proven' (case-insensitive) appears in no authored record content or comments; only literal source scalar content in rules.rules[*].quote is exempt, without endorsing that quotation",
+    "X13 every row with attempt>1 has a hypotheses entry with before_attempt == attempt whose node is the row's subject.node, or subject.item, or the literal 'integration'",
+    "X14 writes paths are unique across nodes, compared as exact strings",
+    "X15 the reads graph is acyclic",
+    "X16 taking each (node, check) subject's LATEST attempt: nodes with a dissent verdict == progress.graph.dissent; nodes with an escalated verdict ⊆ progress.graph.escalated",
+    "X17 audits.evidence verdict is pass iff (miscited+unfound)/rows <= 0.10, or rows == 0; audits.wellformed is schema-required on every record; miscited + unfound <= rows; a pass with rows > 0 has fresh_subagent isolation",
+    "X18 a node whose checks are all review has a reviewer subagent for that node in progress.subagents once any of its rows has isolation other than not_run (before that, the review has not run)",
+    "X19 every rules row with concerns ∋ graph|checks|progress holds on this record — delegated: rules are prose; validator reports them as 'manual'",
+    "X20 code node: code.gate names one of the node's checks and that check has type exec",
+    "X21 a pass row with exec evidence has actual_exit == expected_exit; a pass row with excerpt evidence has every section verdict pass and at least one section",
+    "X22 ids are unique: node ids; check ids within a node; rules ids; open_issues ids; framing assumptions/unknowns/risks ids (one namespace); subagent ids per (id, role, node); (subject, attempt) pairs in checks.rows are unique",
+    "X23 every reference resolves whenever present: subject.node/check, decisions.node, hypotheses.node, subagents.node, lessons.node, next_action.node, next_action.issue (open_issues), evidence.from_node. A hypothesis entry's node may also be an acceptance item id (an acceptance review retried after corrections, X13)",
+    "X24 every does[].produces is in the node's shape",
+    "X25 tier_rule fired lines are consistent with the node as dispatched: review_only_check iff all checks are review; reads_three_or_more_upstream iff len(reads.upstream) >= 3; needs_two_or_more_domains iff len(needs) >= 2; content_merge is not derivable and is accepted as stated. A node with a check_revision decision is exempt: its lines are frozen at dispatch",
+    "X26 X17 at rows == 0: verdict must be pass (vacuous) or not_run",
+    "X27 progress.assumptions and framing.assumptions share one id namespace; every progress.assumptions id exists in framing.assumptions; a risk or unknown id does not resolve an assumption reference",
+    "X28 a check with exec_available partial has, whenever its exec row's actual_exit != expected_exit, a review row for the same subject and attempt whose check id is <id>-residue, with red_evidence of kind mutant (the flagged list plus one added violation) and a fresh_subagent reviewer; the exec row takes that row's verdict. A void residue review is recorded like any void review. A residue row whose verdict is pass or fail is a review with fresh_subagent isolation and mutant red evidence; an unresolved residue row may be degraded",
+    "X29 a framing unknown with disposition pending names an open_issues id that exists and is unresolved, and progress.next_action is blocked on that issue; once next_action moves on, the unknown must be asked (with answer) or assumed",
+    "X30 when unit is node_runs, usage.reserve_runs holds at most ceil(limit/10) non-audit entries; a correction_return or re_gate names a node with a checks row at that attempt (attempt >= 2); an integration entry names an attempt at which an integration- or acceptance-subject row exists (the integration node's gate is the acceptance items); an audit entry names each audit at most once; consumed exceeds limit by at most the number of audit entries — the reserve is part of limit, audits are the only runs that may pass it",
+    "X31 an accepted node's latest row for every check has a verdict other than fail, dissent or escalated (well-formedness, not completion: unresolved rows still make the run partial)",
+    "X32 every rules row whose concerns include deliverable is named in some acceptance row's exercises[] or in progress.unchecked_rules (with a reason), and no id is in both; an unchecked_rules id exists in rules"
+  ]
+}

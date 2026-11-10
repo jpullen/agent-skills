@@ -1,0 +1,27 @@
+nodes:
+  - id: g1
+    purpose: Validate a checks file against the row rules
+    does: [{imperative: parse the table, produces: parser}, {imperative: apply row rules, produces: rules}, {imperative: report first offender, produces: cli}]
+    shape: [parser, rules, cli]
+    split_reason: {kind: own_gate, condition: output_consumed_by_two_or_more, risk: r1}
+    reads: {sources: true, upstream: []}
+    writes: [code/checkrows.py]
+    needs: []
+    kind: judgment
+    checks: [{id: g1-gate, type: exec, content: pytest tests/test_checkrows.py, fails_when: any test fails, exec_available: 'yes'}]
+    rules: {kind: judgment}
+    model: {tier: haiku, tier_rule: [], escalations: 0}
+  - id: g3
+    purpose: Document both scripts
+    does: [{imperative: state invocation and exit codes, produces: usage}, {imperative: list every check, produces: checks}]
+    shape: [usage, checks]
+    split_reason: {kind: own_gate, condition: output_consumed_by_two_or_more, risk: r2}
+    reads: {sources: false, upstream: [{node: g1, sections: [rules, cli]}]}
+    writes: [README.md]
+    needs: []
+    kind: judgment
+    checks: [{id: g3-review, type: review, content: README lists every implemented check, fails_when: an implemented check has no entry under checks, exec_available: 'no'}]
+    rules: {kind: judgment}
+    model: {tier: sonnet, tier_rule: [review_only_check], escalations: 0}
+    reviewer_tier: sonnet
+    unavailable: {tried: [{what: exec, returned: no deterministic oracle for prose}]}

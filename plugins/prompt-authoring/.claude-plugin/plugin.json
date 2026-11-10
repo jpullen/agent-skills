@@ -1,0 +1,11 @@
+{
+  "name": "prompt-authoring",
+  "version": "2.9.0",
+  "description": "Authoring rules for durable AI instructions (CLAUDE.md, SKILL.md, prompts) and the PIPELINE-001 multi-stage analysis pipeline.",
+  "author": {
+    "name": "Jeremy Pullen"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/jpullen/agent-skills",
+  "keywords": ["prompt", "claude-md", "skill-md", "prompt-engineering", "pipeline", "claude-code"]
+}

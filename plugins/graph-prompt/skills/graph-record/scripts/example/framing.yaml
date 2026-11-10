@@ -1,0 +1,10 @@
+problem: Build two validators for graph run records plus a README, validated against fixtures.
+goals: [checkrows validates checks rows, wellformed validates cross-file consistency, README documents both]
+constraints: [Python 3 stdlib only, interactive mode]
+assumptions:
+  - {id: a1, text: the record format is what the spec states, assumed: "yes"}
+unknowns:
+  - {id: u1, text: whether the clean fixture conforms to every spec rule, changes_outcome: true, disposition: assumed}
+risks:
+  - {id: r1, text: validator written to the five fixtures passes nothing else, guarded_by: {kind: gate, node: g1, check: g1-gate}}
+  - {id: r2, text: README drifts from code, guarded_by: {kind: gate, node: g3, check: g3-review}}

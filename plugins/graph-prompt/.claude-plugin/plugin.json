@@ -1,0 +1,11 @@
+{
+  "name": "graph-prompt",
+  "version": "3.5.3",
+  "description": "Bounded-node DAG execution with gated, mutant-checked reviews and a schema-validated run record.",
+  "author": {
+    "name": "Jeremy Pullen"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/jpullen/agent-skills",
+  "keywords": ["prompt", "dag", "claude-code", "skill", "run-record", "review"]
+}

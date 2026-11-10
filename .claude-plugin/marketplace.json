@@ -1,0 +1,19 @@
+{
+  "name": "jpullen",
+  "owner": {
+    "name": "Jeremy Pullen"
+  },
+  "description": "Claude Code plugins by Jeremy Pullen: the graph-prompt bounded-node execution kit and the prompt-authoring guides with the PIPELINE-001 analysis pipeline.",
+  "plugins": [
+    {
+      "name": "graph-prompt",
+      "source": "./plugins/graph-prompt",
+      "description": "Bounded-node DAG execution with gated, mutant-checked reviews and a schema-validated run record."
+    },
+    {
+      "name": "prompt-authoring",
+      "source": "./plugins/prompt-authoring",
+      "description": "Authoring rules for durable AI instructions (CLAUDE.md, SKILL.md, prompts) and the PIPELINE-001 multi-stage analysis pipeline."
+    }
+  ]
+}

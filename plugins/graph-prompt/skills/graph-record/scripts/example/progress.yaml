@@ -1,0 +1,18 @@
+enforcement: {kind: instruction_only}
+graph: {accepted: [g1, g3], running: [], failed: [], blocked: [], dissent: [], escalated: [], not_started: []}
+outputs: [code/checkrows.py, README.md]
+decisions:
+  - {kind: other, reason: scripts live in OUTPUT because they are the deliverable}
+assumptions: [{id: a1, assumed: "yes"}]
+open_issues: []
+subagents:
+  - {id: aa56dc05c614de3a0, role: builder, node: g1, tier: haiku}
+  - {id: a7533c33d10fcd70f, role: builder, node: g3, tier: sonnet}
+  - {id: ab18228248301e74e, role: reviewer, node: g3, tier: sonnet}
+  - {id: a63e30f5b96a29938, role: evidence_audit, tier: sonnet}
+audits:
+  wellformed: {exit_code: 0, isolation: na_code}
+  evidence: {isolation: {kind: fresh_subagent, subagent: a63e30f5b96a29938}, rows: 3, miscited: 0, unfound: 0, verdict: pass, notes: [auditor noted checkrows exits 0 on d1 and d4]}
+hypotheses: []
+usage: {limit: 30, unit: node_runs, consumed: 7, lead_tokens: null}
+next_action: {kind: delivery}

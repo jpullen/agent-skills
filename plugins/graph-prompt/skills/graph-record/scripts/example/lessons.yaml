@@ -1,0 +1,2 @@
+entries:
+  - {node: g1, evidence: 18/18 gate tests, tier: haiku, tier_rule: [], attempt: 1, confirmed_in: 1, promoted: false}
