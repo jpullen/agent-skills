@@ -54,10 +54,10 @@ def test_changelog_is_the_backgrounds_changelog_verbatim():
 def test_recorded_word_count_is_the_prompts():
     newest = next(l for l in CHANGELOG.splitlines() if l.startswith(f"**v{prompt_version()}**"))
     recorded = int(re.findall(r"→ ([\d,]+) words", newest)[-1].replace(",", ""))
-    # wc -w is locale-dependent (non-ASCII punctuation); the recorded series is in the C locale
-    actual = int(subprocess.run(["wc", "-w", str(GRAPH / "SKILL.md")], capture_output=True, text=True,
-                                env=dict(os.environ, LC_ALL="C")).stdout.split()[0])
-    assert recorded == actual, "SKILL.md changed without its changelog word count (whole file, LC_ALL=C wc -w)"
+    # `wc -w` differs by locale and by coreutils version on this file (tokens that are only non-ASCII punctuation),
+    # so the recorded count is defined here: whitespace-separated byte tokens of the whole file.
+    actual = len((GRAPH / "SKILL.md").read_bytes().split())
+    assert recorded == actual, "SKILL.md changed without its changelog word count (whitespace-separated tokens of the whole file)"
 
 
 def test_every_path_the_skills_name_exists():

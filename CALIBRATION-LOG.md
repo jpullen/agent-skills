@@ -957,3 +957,5 @@ Reading: RF-73 and RF-74 are the two findings v3.6's worktree design made more l
 - BUG-10's disposition is not recorded in this log.
 - The interactive "Graph Kit Test Matrix" artifact shows old figures; `TEST-MATRIX.md` has the corrected ones.
 - This branch's commits are authored `Claude <noreply@anthropic.com>` and carry session links; squash or re-author before merging to `main` if `main` is to stay single-author. (D73 would now have refused them, had the run that made them been a graph run with {{AUTHOR}} given.)
+
+**Word count, corrected (2026-11-20).** CI failed the consistency step on the audit commit: `LC_ALL=C wc -w` returned 4,810 in the authoring container and 4,838 on the CI runner for the same bytes, so pinning the locale did not make the count portable. The check now counts whitespace-separated byte tokens itself. By that count the prompt file went 4,027 (v3.5.1) → 5,045 (v3.6 with run 14's rules); the figures 4,611, 4,694, 4,741, 4,810 and 5,012 in the entries above are `wc -w` readings from this container and are not comparable with it.
