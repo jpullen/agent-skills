@@ -2986,11 +2986,11 @@
         },
         "base": {
           "$ref": "#/$defs/commit",
-          "description": "the commit the attempt started from: the run base, the fan-in merge of the node's upstream commits, or the node's previous attempt (X35)"
+          "description": "the commit the attempt started from: the run base, the fan-in merge of the node's upstream commits, the node's previous attempt, or at a rebuild the upstream base with the node's previous commit merged in (X35)"
         },
         "scope_base": {
           "$ref": "#/$defs/commit",
-          "description": "the commit the scope diff is measured from (RF-62): for an acceptance or integration row, base; for a node row, its attempt-1 base, reset to the base of an attempt whose hypothesis cause is upstream_field (X35)"
+          "description": "the commit the scope diff is measured from (RF-62, RF-67): for an acceptance or integration row, base; for a node row, its attempt-1 base, replaced at a rebuild (hypothesis cause upstream_field) by that attempt's upstream base — the run base with the upstreams' newest accepted commits merged, before the node's own earlier commit is carried in (X35)"
         },
         "commit": {
           "$ref": "#/$defs/commit",
@@ -3040,8 +3040,9 @@
     "X30 when unit is node_runs, usage.reserve_runs holds at most ceil(limit/10) non-audit entries; a correction_return or re_gate names a node with a checks row at that attempt (attempt >= 2); an integration entry names an attempt at which an integration- or acceptance-subject row exists (the integration node's gate is the acceptance items); an audit entry names each audit at most once; consumed exceeds limit by at most the number of audit entries — the reserve is part of limit, audits are the only runs that may pass it",
     "X31 an accepted node's latest row for every check has a verdict other than fail, dissent or escalated (well-formedness, not completion: unresolved rows still make the run partial)",
     "X32 every rules row whose concerns include deliverable is named in some acceptance row's exercises[] or in progress.unchecked_rules (with a reason), and no id is in both; an unchecked_rules id exists in rules",
+    "X33 an exec evidence command whose first cd names a relative path is a finding: the citation depends on the lead's working directory and the auditor cannot rerun it as written",
     "X34 when progress.workspace.kind is worktree, every node, acceptance or integration row whose evidence kind is not not_run carries workspace; when progress.workspace is absent or directory, no row carries workspace",
-    "X35 rows of one node at one attempt carry identical workspace; two nodes never share a branch; a node row at attempt n > 1 has workspace.base equal to that node's attempt n-1 commit, unless the hypotheses entry for that node and attempt has cause upstream_field (the base was rebuilt from re-accepted upstream commits); acceptance and integration rows at one attempt carry identical workspace; a node row's scope_base equals its attempt-1 base, or the base of its newest earlier-or-same attempt whose hypothesis cause is upstream_field; an acceptance or integration row's scope_base equals its base",
+    "X35 rows of one node at one attempt carry identical workspace; two nodes never share a branch; a node row at attempt n > 1 has workspace.base equal to that node's attempt n-1 commit, unless the hypotheses entry for that node and attempt has cause upstream_field (the base was rebuilt from re-accepted upstream commits); acceptance and integration rows at one attempt carry identical workspace; a node row's scope_base equals its attempt-1 base and stays the same on every later attempt, except that an attempt whose hypothesis cause is upstream_field sets a new one, which is not that attempt's base; an acceptance or integration row's scope_base equals its base",
     "X36 on a node row with verdict pass or dissent, every workspace.changed path equals one of the node's writes or lies under a writes entry that ends in '/'",
     "X37 once acceptance or integration rows carry workspace, progress.workspace.integration_branch is present and equals the branch of the rows at the newest integration attempt; when next_action.kind is delivery under worktree, progress.workspace.landed is present, and a fast_forward landed.commit equals that newest integration commit"
   ]

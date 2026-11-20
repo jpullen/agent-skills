@@ -25,9 +25,9 @@ To pick up a newer release, run `/plugin marketplace update jpullen`; Claude Cod
 
 **Reviews are tested before they are trusted.** Each review gate gets two unlabeled variants in random order: the real artifact and a copy with one planted defect. The review counts only if it fails the planted copy and passes the real one; a surviving defect voids it ([`graph` SKILL.md](plugins/graph-prompt/skills/graph/SKILL.md)).
 
-**The run record is checked by code, not by reading.** A [JSON schema](plugins/graph-prompt/skills/graph/references/graph-record.schema.json), the cross-file rules in `validate.py`, `coverage.py` and `report.py` read the record. `gen_fixtures.py` generates mutated records to test the validator: on the bundled example it made 596, of which 591 were expected to be caught and all 591 were, with no gaps. The scripts' 384 tests pass ([scripts](plugins/graph-prompt/skills/graph-record/scripts/)).
+**The run record is checked by code, not by reading.** A [JSON schema](plugins/graph-prompt/skills/graph/references/graph-record.schema.json), the cross-file rules in `validate.py`, `coverage.py` and `report.py` read the record. `gen_fixtures.py` generates mutated records to test the validator: on the bundled example it made 596, of which 591 were expected to be caught and all 591 were, with no gaps. The scripts' 390 tests pass ([scripts](plugins/graph-prompt/skills/graph-record/scripts/)).
 
-**Parallel work is isolated in git worktrees and converges by merge.** When the deliverable lives in a git repository, every node attempt runs on its own branch in its own worktree, so parallel builders never see each other's half-finished output and every attempt, failed or accepted, stays a commit. Each node gate includes a scope diff that fails any change outside the node's declared `writes`. Dependent nodes start from a merge of their accepted upstream commits, the integration node runs on a branch that merges every accepted node in topological order from the run base, and delivery fast-forwards your branch to it or reports why it could not. A git conflict is treated as a write outside `writes`, never auto-resolved. The steps run as one program, [`worktrees.py`](plugins/graph-prompt/skills/graph/scripts/worktrees.py) (29 tests against throwaway repositories; every non-equivalent single-site mutant killed, 143 of 143), and `worktrees.py verify` checks the run record against git. One calibration run (run 13, three nodes) has used it; it found eight defects in the kit, fixed before release, listed in [CALIBRATION-LOG.md](CALIBRATION-LOG.md).
+**Parallel work is isolated in git worktrees and converges by merge.** When the deliverable lives in a git repository, every node attempt runs on its own branch in its own worktree, so parallel builders never see each other's half-finished output and every attempt, failed or accepted, stays a commit. Each node gate includes a scope diff that fails any change outside the node's declared `writes`. Dependent nodes start from a merge of their accepted upstream commits, the integration node runs on a branch that merges every accepted node in topological order from the run base, and delivery fast-forwards your branch to it or reports why it could not. A git conflict is treated as a write outside `writes`, never auto-resolved. The steps run as one program, [`worktrees.py`](plugins/graph-prompt/skills/graph/scripts/worktrees.py) (31 unit tests and 6 end-to-end scenarios against throwaway repositories; every single-site mutant is killed or listed as equivalent with a reason), and `worktrees.py verify` checks the run record against git. One calibration run (run 13, three nodes) has used it; it found eight defects in the kit, and the permanent harness built from it found a ninth; all are fixed and listed in [CALIBRATION-LOG.md](CALIBRATION-LOG.md).
 
 **Failures have named causes and a budget.** A retry records one of four causes (builder error, upstream field wrong, check wrong, source defect); a node fails on its third failed attempt; the last tenth of the run limit is reserved; a fresh-context evidence audit re-checks cited commands ([`graph` SKILL.md](plugins/graph-prompt/skills/graph/SKILL.md)).
 
@@ -54,6 +54,7 @@ plugins/
   prompt-authoring/    plugin: skills prompt-authoring and pipeline-001, CHANGELOG.md
 compat/
   codex/               adapter for running the graph prompt under Codex
+harness/               one-command test harness (python3 harness/run.py); see harness/README.md
 CALIBRATION-LOG.md     the author's calibration runs and decisions
 TEST-MATRIX.md         what the calibration runs have and have not exercised
 ATTRIBUTION.md       lineage and prior art
@@ -70,6 +71,7 @@ Open a run record when the work has outputs that must be accepted before other o
 ## More
 
 - [CALIBRATION-LOG.md](CALIBRATION-LOG.md): the decisions and results behind each prompt version. It is the author's own runs, not an independent evaluation. In its run 12 entry the graph route measured once at 16 times the subagent tokens of a direct build, on one pair of runs.
+- [harness/README.md](harness/README.md): how to test the kit (`python3 harness/run.py`), what each tier shows, and what only a calibration run can show.
 - [TEST-MATRIX.md](TEST-MATRIX.md): the conditions the calibration apparatus has covered, partly covered and never covered.
 - [ATTRIBUTION.md](ATTRIBUTION.md): where the graph prompt came from, and the prior art the authoring guide cites.
 - [LICENSE](LICENSE): MIT.

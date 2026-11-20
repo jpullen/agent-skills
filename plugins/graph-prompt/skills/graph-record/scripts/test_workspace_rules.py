@@ -83,7 +83,7 @@ def retry(r, cause):
     second = copy.deepcopy(rows[0])
     rows[0]["verdict"] = "fail"; rows[0]["evidence"]["actual_exit"] = 1
     second["attempt"] = 2
-    second["workspace"] = {"branch": f"graph/{SLUG}/g1/a2", "base": G1B, "scope_base": G1B if cause == "upstream_field" else B0,
+    second["workspace"] = {"branch": f"graph/{SLUG}/g1/a2", "base": G1B, "scope_base": G3B if cause == "upstream_field" else B0,
                            "commit": hashlib.sha1(b"g1-a2").hexdigest(), "changed": ["code/checkrows.py"]}
     rows.insert(1, second)
     r["progress"]["hypotheses"] = [{"node": "g1", "before_attempt": 2, "cause": cause, "disconfirmation": "the retry passes"}]
@@ -179,7 +179,7 @@ def test_rf62_scope_base_is_attempt_one_base_unless_rebuilt(tmp_path):
     assert "X35" not in rules(r, tmp_path)[1]
     r["checks"]["rows"][1]["workspace"]["scope_base"] = G1  # measured per attempt: the RF-62 defect
     assert "X35" in rules(r, tmp_path)[1]
-    r = retry(worktree_record(), "upstream_field"); r["checks"]["rows"][1]["workspace"]["scope_base"] = B0
-    assert "X35" in rules(r, tmp_path)[1]
+    r = retry(worktree_record(), "upstream_field"); r["checks"]["rows"][1]["workspace"]["scope_base"] = G1B
+    assert "X35" in rules(r, tmp_path)[1]  # RF-67: a rebuilt attempt's scope base is its upstream base, never its own base
     r = worktree_record(); r["checks"]["rows"][3]["workspace"]["scope_base"] = G1
     assert "X35" in rules(r, tmp_path)[1]

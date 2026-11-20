@@ -11,9 +11,14 @@ Every step here is deterministic, so it runs as a program, never as a subagent
   exclude   REPO PATTERN ...
             add gitignore patterns for byproducts the gates create (caches, logs) to
             the repository's local exclude file, shared by every worktree (RF-61).
-  node      REPO --slug S --node N --attempt K --from SHA [--upstream U=SHA ...] [--graph G]
+  node      REPO --slug S --node N --attempt K --from SHA [--upstream U=SHA ...] [--graph G] [--carry PREV]
             create (or switch) the node's worktree onto branch graph/S/N/aK at SHA,
             then merge the upstream commits in topological order (ties by node id).
+            Attempt 1: --from the run base. A retry: --from the previous attempt's
+            commit, no upstreams. A rebuild after an upstream was re-accepted:
+            --from the run base, the upstreams' newest commits, and --carry the
+            node's previous commit, merged last. `upstream_base` in the output is
+            the commit before the carry: the node's scope base (RF-67).
   commit    WORKTREE --message M
             stage everything in the worktree and commit it; one commit per attempt.
   scope     WORKTREE --base B --commit C (--writes P ... | --graph G --node N)
@@ -170,6 +175,7 @@ def cmd_node(a):
     branch = f"graph/{a.slug}/{a.node}/a{a.attempt}"
     upstream = ordered(parse_pairs(a.upstream), a.graph)  # validate before any side effect (RF-58)
     start = out(a.repo, "rev-parse", "--verify", a.from_ + "^{commit}")
+    carry = out(a.repo, "rev-parse", "--verify", a.carry + "^{commit}") if a.carry else None
     if os.path.isdir(wt):
         if out(wt, "status", "--porcelain"):
             raise Fail(3, {"error": "the node's worktree has uncommitted changes", "worktree": wt})
@@ -177,7 +183,10 @@ def cmd_node(a):
     else:
         git(a.repo, "worktree", "add", "-b", branch, wt, start)
     merge_all(wt, upstream, f"graph({a.slug}): {a.node} a{a.attempt} base")
-    return 0, {"worktree": wt, "branch": branch, "base": out(wt, "rev-parse", "HEAD")}
+    upstream_base = out(wt, "rev-parse", "HEAD")
+    if carry:
+        merge_all(wt, [(f"{a.node} previous attempt", carry)], f"graph({a.slug}): {a.node} a{a.attempt} carry")
+    return 0, {"worktree": wt, "branch": branch, "base": out(wt, "rev-parse", "HEAD"), "upstream_base": upstream_base}
 
 
 def cmd_commit(a):
@@ -241,8 +250,8 @@ def cmd_verify(a):
         return 0, {"findings": [], "note": "progress.workspace.kind is not worktree; nothing to verify"}
     repo = a.repo or ws.get("repo")
     exists = lambda sha: git(repo, "cat-file", "-e", sha + "^{commit}", check=False).returncode == 0
-    newest = {}
-    for r in rows:
+    newest, attempts = {}, {}
+    for r in sorted(rows, key=lambda r: r["attempt"]):
         w = r.get("workspace")
         if not w:
             continue
@@ -253,14 +262,19 @@ def cmd_verify(a):
         scope_base = w.get("scope_base", w["base"])
         if not exists(scope_base):
             findings.append(f"W02 {who}: scope_base is not in the repository"); continue  # RF-66: no diff against a missing commit
-        if not is_ancestor(repo, w["base"], w["commit"]) or not is_ancestor(repo, scope_base, w["commit"]):
-            findings.append(f"W02 {who}: base or scope_base is not an ancestor of commit")
+        if not is_ancestor(repo, w["base"], w["commit"]) or not is_ancestor(repo, scope_base, w["base"]):
+            findings.append(f"W02 {who}: base is not an ancestor of commit, or scope_base is not an ancestor of base")
         tip = git(repo, "rev-parse", "--verify", "--quiet", "refs/heads/" + w["branch"], check=False).stdout.strip()
         if tip != w["commit"]:
             findings.append(f"W03 {who}: branch {w['branch']} tip is {tip[:12] or 'missing'}, not the recorded commit")
         diff = set(out(repo, "diff", "--name-only", scope_base, w["commit"]).splitlines())
         if diff != set(w["changed"]):
             findings.append(f"W04 {who}: changed list differs from git diff (git has {sorted(diff ^ set(w['changed']))} different)")
+        if s["kind"] == "node":
+            prev = attempts.get((s["node"], r["attempt"] - 1))
+            if prev and exists(prev) and not is_ancestor(repo, prev, w["base"]):
+                findings.append(f"W08 {who}: the previous attempt's commit is not contained in this attempt's base")
+            attempts[(s["node"], r["attempt"])] = w["commit"]
         if s["kind"] == "node" and r["verdict"] in ("pass", "dissent"):
             cur = newest.get(s["node"])
             if not cur or r["attempt"] > cur[0]:
@@ -324,7 +338,7 @@ def main(argv=None):
     p = sub.add_parser("exclude"); p.add_argument("repo"); p.add_argument("patterns", nargs="+")
     p = sub.add_parser("node"); p.add_argument("repo"); p.add_argument("--slug", required=True); p.add_argument("--node", required=True)
     p.add_argument("--attempt", type=int, required=True); p.add_argument("--from", dest="from_", required=True)
-    p.add_argument("--upstream", nargs="*", action="extend"); p.add_argument("--graph"); p.add_argument("--root")
+    p.add_argument("--upstream", nargs="*", action="extend"); p.add_argument("--graph"); p.add_argument("--root"); p.add_argument("--carry")
     p = sub.add_parser("commit"); p.add_argument("worktree"); p.add_argument("--message", required=True)
     p = sub.add_parser("scope"); p.add_argument("worktree"); p.add_argument("--base", required=True); p.add_argument("--commit", required=True)
     p.add_argument("--writes", nargs="*", action="extend"); p.add_argument("--graph"); p.add_argument("--node")

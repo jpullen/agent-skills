@@ -493,18 +493,23 @@ def workspace_findings(rec):
         prev = by_key.get(("node", node, attempt - 1))
         if prev and w["base"] != prev["commit"]:
             f.append(("X35", f"{node}#{attempt}", f"base {w['base'][:12]} is not attempt {attempt - 1}'s commit {prev['commit'][:12]}"))
-    # X35 scope_base (RF-62): attempt 1's base, reset by an upstream_field rebuild; integration rows measure from their base
+    # X35 scope_base (RF-62, RF-67): attempt 1's is its base; it changes only at an upstream_field rebuild; integration rows measure from their base
+    last = {}
     for (kind, node, attempt), w in sorted(by_key.items(), key=lambda kv: (kv[0][0], kv[0][1] or "", kv[0][2])):
         if kind == "integration":
             want = w["base"]
+        elif node not in last:
+            want = w["base"] if attempt == 1 else w["scope_base"]
+        elif (node, attempt) in rebased:
+            want = w["scope_base"]
+            if w["scope_base"] == w["base"]:
+                f.append(("X35", f"{node}#{attempt}", "a rebuilt attempt's scope_base is its upstream base, not its base (the base also carries the node's earlier commits)"))
         else:
-            resets = [a for (n, a) in rebased if n == node and a <= attempt and ("node", node, a) in by_key]
-            first = by_key.get(("node", node, max(resets) if resets else 1))
-            if not first:
-                continue
-            want = first["base"]
+            want = last[node]
         if w["scope_base"] != want:
             f.append(("X35", f"{node or 'integration'}#{attempt}", f"scope_base {w['scope_base'][:12]} is not {want[:12]}"))
+        if kind == "node":
+            last[node] = w["scope_base"]
     # X36 scope
     for r in rows:
         w, s = r.get("workspace"), r["subject"]

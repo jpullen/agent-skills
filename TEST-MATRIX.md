@@ -1,6 +1,6 @@
 # Test coverage matrix (kit v3.6.0, 2026-11-20, after run 13)
 
-Source of truth for what the calibration apparatus has exercised. An interactive version (not published) also exists, with an evidence grid, return-path transition coverage, and Pareto and set-cover views. Runs 1–6 predate the v3 record and are not counted. Keys (Gnn, Inn) name conditions; the set cover targets those whose status is `never` or `partial`, and a condition marked `covered` (G06, for one) is not open.
+Source of truth for what the calibration apparatus has exercised. The deterministic side — everything checkable without a model — is `python3 harness/run.py` (see `harness/README.md`); its totals line is itself checked by the harness. An interactive version (not published) also exists, with an evidence grid, return-path transition coverage, and Pareto and set-cover views. Runs 1–6 predate the v3 record and are not counted. Keys (Gnn, Inn) name conditions; the set cover targets those whose status is `never` or `partial`, and a condition marked `covered` (G06, for one) is not open.
 
 ## 1. Conditions and evidence
 
@@ -86,7 +86,8 @@ Source of truth for what the calibration apparatus has exercised. An interactive
 | G32 | Workspace | worktree | parallel nodes, fan-in base, integration branch and landing in a real run | 13 | test_worktrees (28) | T-50, T-52 | covered | three nodes, two parallel; fast-forward landing |
 | G33 | Workspace | worktree | a write outside `writes` caught by the scope diff in a real run | 13 | X36, test_worktrees | T-51 | covered | planted (I03); found RF-61 and RF-62 |
 | G34 | Workspace | worktree | resumption verified against git (`worktrees.py verify`) after a lost session | 13 |  | T-53 | partial | a fresh lead planned the resume from the record (2/3) but did not execute it; found RF-64 |
-| G35 | Workspace | worktree | a killed attempt that changed nothing (base as commit, RF-65) in a real run |  |  |  | never | rule added after run 13; run 13's killed builder had written its file |
+| G35 | Workspace | worktree | a killed attempt that changed nothing (base as commit, RF-65) in a real run |  | e2e scenario |  | partial | scripted lead only; run 13's killed builder had written its file |
+| G37 | Workspace | worktree | a dependent rebuilt on a re-accepted upstream (cause b, `node --carry`, RF-67) in a real run |  | e2e scenario, X35, W08 |  | partial | scripted lead only; no real run has reopened an upstream (also section 2's never-traversed cause-b edge) |
 | G36 | Workspace | worktree | a review gate (mutant, fresh reviewer) on a worktree attempt |  |  |  | never | run 13 used exec gates only |
 | G28 | Route | comparison | graph vs direct, pre-registered pair | 12 |  | P1–P4 | partial | one pair; T-44 asks for a second on a different task |
 |  | Incidents (occurred) | harness | Write tool refused to a subagent | 12 × |  |  | covered | unplanned; resumed via message, heredoc save |
@@ -105,7 +106,7 @@ Source of truth for what the calibration apparatus has exercised. An interactive
 |  | Measures | recorded per run | first-attempt reviewer pass rate | 9–12 |  | T-28 | covered |  |
 | G27 | Measures | recorded per run | reviewer repeatability (same brief, N runs) |  |  |  | never | a statistic the kit has never collected |
 
-Totals: 98 conditions — 65 covered, 14 partial, 19 never. Open conditions and injections not yet run (deduplicated): 45. (v3.6 added the X34–X37 row and G32–G36; run 13 covered G32, G33, I03 and I12 and moved G34 and I11 to partial.)
+Totals: 99 conditions — 65 covered, 16 partial, 18 never. Open conditions and injections not yet run (deduplicated): 46. (v3.6 added the X34–X37 row and G32–G37; run 13 covered G32, G33, I03 and I12 and moved G34 and I11 to partial; the harness's scripted scenarios moved G35 to partial and added G37. A scripted scenario shows the kit handles a condition, never that a model lead does, so it earns `partial` at most.)
 
 ## 2. Return-path transition coverage
 
@@ -174,7 +175,7 @@ Value 1–5 (5 = tests a claim the design rests on); cost 1–5 (1 = one call, 3
 | — | 16 | FT-16 | Opus reviewer vs sonnet on one mutant set | whether tier buys reviewer sensitivity | 3 | 3 | 3 | own run | none open (G06 is covered; this measures what the opus tier adds, not whether it was used) |
 | — | 22 | FT-23 | Partial-output builder → attempt counted, hypothesis recorded | layer 6 bookkeeping | 2 | 1 | 3 | heuristic skip | I01, I02 |
 | done | — | FT-30 | A worktree run with two parallel nodes and a join, one planted out-of-scope write, then a resume after a killed session | whether D67–D70 hold in a real run: isolation, scope diff, convergence, verify on resume | 4 | 3 | 5 | run 13 | G32, G33 (closed); G34 (partial) |
-| new | new | FT-31 | An executed resume: a fresh lead continues run 13's state from the record to delivery, plus a review-gated worktree node and a killed builder that wrote nothing | G34 and I11 end to end; G35, G36 | 4 | 3 | 5 | next run | G34, G35, G36, I11 |
+| new | new | FT-31 | An executed resume: a fresh lead continues run 13's state from the record to delivery, plus a review-gated worktree node, a killed builder that wrote nothing and a reopened upstream | G34 and I11 end to end; G35, G36, G37 | 4 | 3 | 5 | next run | G34, G35, G36, G37, I11 |
 
 Open conditions no test closes: I15 (Subagent token or context exhaustion mid-write). Tokens and time per run are a recording practice for every run rather than a test.
 

@@ -891,3 +891,16 @@ Task: the units CLI to SPEC.md S1–S5 in a throwaway repository; nodes `table` 
 | harness | the mutation harness copied files out of the repository layout and had no green-baseline guard, so one run counted every mutant killed | layout kept, baseline required; kept as `graph/scripts/mutate_worktrees.py` |
 
 Reading: every defect the run found sat in the new machinery, none in the v3.5.1 rules it builds on, and four of them (RF-62, RF-63, RF-64, RF-65) were invisible to the 10 unit tests v3.6 shipped with — RF-63 because the tests encoded the same wrong file layout as the code. The planted fault and the lost builder each exercised a path the design had not walked. Not covered: a review gate under worktrees (G36), an empty killed attempt (G35), an executed resume (G34, I11); FT-31 proposes all four for the next run.
+
+## Permanent harness (2026-11-20, after run 13) → kit v3.6.0
+
+`harness/run.py` replaces the by-hand procedure of run 13's layers 1 and 2 and replays its layer 3 without a model: tiers fast (consistency, both suites, both examples), standard (+ six end-to-end scenarios driven by a scripted lead, `graph/scripts/e2e/`), full (+ generated mutants on both examples at `gaps 0; over-strict 0`, + the mutation run over `worktrees.py` against `equivalent-mutants.json`, 15 entries each with its reason). `.github/workflows/harness.yml` runs standard on every push and pull request and the slow steps on pull requests that touch the kit. Scope: the harness tests the kit; it does not run a model, and a scripted scenario moves a TEST-MATRIX condition to `partial` at most.
+
+Found while building it:
+
+| id | finding | disposition |
+|---|---|---|
+| RF-67 | the upstream-reopened scenario: a re-gate that merged the new upstream into the node's own commit and reset the scope base to the result measured the scope diff from a base that already held the node's earlier work, so `changed` was empty and an earlier out-of-scope write would have been hidden | a rebuild starts from the run base with the upstreams' newest commits (the new scope base) and carries the node's previous commit in last (`worktrees.py node --carry`); X35 rejects a rebuilt attempt whose scope base is its base; `verify` W08 checks no attempt drops its predecessor; prompt Re-gates bullet rewritten; tests |
+| consistency | the first run of `harness/test_consistency.py` failed on three drifts: the README's record-suite count (384, actual 390), the recorded prompt word count, and X33, which `validate.py` has enforced since v3.5.1 but the schema's `x-crossfile` list never named | all three corrected; each is now a standing check |
+
+Reading: RF-67 sat on the cause-(b) path, which no calibration run has ever walked (TEST-MATRIX section 2); a scripted scenario reached it at no token cost. That is the harness's use — the refusing half of the state machine can be exercised mechanically for kit defects, leaving calibration runs for what only a model can show.

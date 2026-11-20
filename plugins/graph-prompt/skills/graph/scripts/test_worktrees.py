@@ -398,3 +398,38 @@ def test_gap_w02_scope_base_must_exist_and_be_an_ancestor(repo):
     assert any(f.startswith("W02 a#1") for f in wt("verify", d)[1]["findings"])
     record(repo, s, [row("node", "a", 1, {**w, "scope_base": s["base"]})])
     assert wt("verify", d)[1]["findings"] == []
+
+
+def test_rf67_rebuild_keeps_the_nodes_own_changes_in_the_scope_diff(repo):
+    """A rebuild on a re-accepted upstream must not hide what the node itself changed earlier."""
+    s = start(repo)
+    g = repo / ".graph" / SLUG / "graph.yaml"
+    _, ca = build(repo, s, "a", 1, s["base"], {"a.txt": "a v1\n"})
+    _, cb = build(repo, s, "b", 1, s["base"], {"b.txt": "b v1\n"})
+    n1, c1 = build(repo, s, "c", 1, s["base"], {"c.txt": "c v1\n", "stray.txt": "outside writes\n"}, upstream=[f"a={ca}", f"b={cb}"])
+    _, ca2 = build(repo, s, "a", 2, ca, {"a.txt": "a v2\n"})
+    code, n2 = wt("node", repo, "--slug", SLUG, "--node", "c", "--attempt", 2, "--from", s["base"], "--graph", g,
+                  "--upstream", f"a={ca2}", "--upstream", f"b={cb}", "--carry", c1)
+    assert code == 0 and n2["upstream_base"] != n2["base"]
+    tree = pathlib.Path(n2["worktree"])
+    assert (tree / "a.txt").read_text() == "a v2\n" and (tree / "c.txt").read_text() == "c v1\n"
+    code, hidden = wt("scope", tree, "--base", n2["base"], "--commit", n2["base"], "--writes", "c.txt")
+    assert code == 0 and hidden["changed"] == []                       # measured from the rebuilt base, the stray write is invisible
+    code, sc = wt("scope", tree, "--base", n2["upstream_base"], "--commit", n2["base"], "--writes", "c.txt")
+    assert code == 1 and sc["outside"] == ["stray.txt"]                # measured from the upstream base, it is caught
+    w2 = {"branch": n2["branch"], "base": n2["base"], "scope_base": n2["upstream_base"], "commit": n2["base"], "changed": ["c.txt", "stray.txt"]}
+    w1 = {"branch": n1["branch"], "base": n1["base"], "scope_base": n1["base"], "commit": c1, "changed": ["c.txt", "stray.txt"]}
+    d = record(repo, s, [row("node", "c", 1, w1, "fail"), row("node", "c", 2, w2, "fail")])
+    assert wt("verify", d)[1]["findings"] == []
+    record(repo, s, [row("node", "c", 1, {**w1, "commit": cb, "branch": f"graph/{SLUG}/b/a1", "changed": ["b.txt"], "base": s["base"], "scope_base": s["base"]}, "fail"),
+                     row("node", "c", 2, {**w2, "base": n2["upstream_base"], "commit": n2["upstream_base"], "changed": [], "branch": n2["branch"]}, "fail")])
+    assert any(f.startswith("W03") or f.startswith("W08") for f in wt("verify", d)[1]["findings"])
+
+
+def test_w08_previous_attempt_must_be_contained_in_the_next_base(repo):
+    s = start(repo)
+    n1, c1 = build(repo, s, "a", 1, s["base"], {"a.txt": "a v1\n"})
+    sh(repo, "git", "branch", f"graph/{SLUG}/a/a2", s["base"])           # a second attempt that silently dropped the first
+    d = record(repo, s, [row("node", "a", 1, {"branch": n1["branch"], "base": s["base"], "scope_base": s["base"], "commit": c1, "changed": ["a.txt"]}, "fail"),
+                         row("node", "a", 2, {"branch": f"graph/{SLUG}/a/a2", "base": s["base"], "scope_base": s["base"], "commit": s["base"], "changed": []}, "fail")])
+    assert any(f.startswith("W08 a#2") for f in wt("verify", d)[1]["findings"])
