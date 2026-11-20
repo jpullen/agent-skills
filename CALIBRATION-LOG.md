@@ -904,3 +904,22 @@ Found while building it:
 | consistency | the first run of `harness/test_consistency.py` failed on three drifts: the README's record-suite count (384, actual 390), the recorded prompt word count, and X33, which `validate.py` has enforced since v3.5.1 but the schema's `x-crossfile` list never named | all three corrected; each is now a standing check |
 
 Reading: RF-67 sat on the cause-(b) path, which no calibration run has ever walked (TEST-MATRIX section 2); a scripted scenario reached it at no token cost. That is the harness's use — the refusing half of the state machine can be exercised mechanically for kit defects, leaving calibration runs for what only a model can show.
+
+## v3.6 authoring audit against the Prompt Authoring Guide (2026-11-20)
+
+The `prompt-authoring` skill applied to every instruction text v3.6 added (the `worktrees` section and its hooks in inputs, layer_2, layer_4, layer_7, the loop, handoff and delivery; the graph-record SKILL.md paragraph). Findings, each fixed:
+
+| # | rule | finding | fix |
+|---|---|---|---|
+| 1 | two-file separation (checklist, authoring conventions) | six rationale clauses in `worktrees` ("so no record file…", "so a retry…", "the record keeps `writes` disjoint, so…", "never see each other's work", "as the record's evidence, so…") | moved to the background ("Rationale kept out of the prompt"); the section states obligations only |
+| 2 | RULE-004 | "byproducts the gates themselves create (caches, logs)" asked the lead to classify; "a section two nodes must both change" likewise | a byproduct is every path `git status` lists in the baseline worktree after baseline; "a path two nodes would both write" |
+| 3 | RULE-020 | `worktrees.py verify` was required to exit 0 at audit 1 and on resumption with no stated outcome for a non-zero exit; audit 1's "the lead corrects the record" was wrong for findings where git, not the record, is short (W05, W08) | a Verification bullet in Trigger / Steps / Output form: correct the record, or open a new attempt, never rewrite history; otherwise a blocker |
+| 4 | RULE-002, RULE-024 | three classification points with no borderline pair (isolation kind; byproduct against write; retry against rebuild), and `retry` / `re-gate` / `rebuild` used side by side undefined | one borderline pair at each; retry and rebuild defined by their trigger |
+| 5 | RULE-022, RULE-023, RULE-031 | the background's per-layer section had no `worktrees` entry: no self-check, no enforcement location, no deployment-target applicability for a section that depends on git and a file system | entry added with `Enforced by:` (X34–X37, W01–W08, the harness) and per-target applicability |
+| 6 | RULE-010, RULE-009 | D67–D70's hypotheses had threshold and horizon but no role; the three rules added during run 13 had no falsifiability statement | role added to each; D71 written with its own |
+| 7 | Part 3, fabrication | "reports W01 by design" with no source (graph-record SKILL.md) | the generator and the test that asserts it are named |
+| 8 | RULE-011 (audit existing text against the new rule) | under `instruction_only` enforcement in autonomous mode "every write to a path not listed verbatim in {{SCOPE}} is blocked", and the worktree root was not in scope: the new section contradicted an existing one | inputs: the worktree root is always in scope under worktree isolation, with {{SCOPE}} applying inside each worktree |
+
+Also found by the harness's consistency check while recording this: `wc -w` is locale-dependent on this file (C locale 4,810; UTF-8 4,838), so two earlier v3.6 counts were in different locales; the check and the changelog now state `LC_ALL=C`. Prompt 4,741 (UTF-8) → 4,810 (C); in one locale the audit added about 100 words net (three borderline pairs and the Verification bullet, less the rationale cut).
+
+Not changed: `compat/codex/` is pinned to upstream v3.4 by its own header and update procedure; it says nothing of worktrees and is left for that procedure. The scripted lead now derives its exclusions from the baseline worktree's `git status`, as finding 2's rule states.

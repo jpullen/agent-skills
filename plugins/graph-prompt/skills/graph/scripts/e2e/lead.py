@@ -73,8 +73,7 @@ class Lead:
         return r.returncode, json.loads(r.stdout)
 
     def _start(self):
-        code, s = self.wt("start", self.repo, "--slug", SLUG, "--run-dir", self.run_dir,
-                          "--scope", "units", "cli.py", "--exclude", "__pycache__/")
+        code, s = self.wt("start", self.repo, "--slug", SLUG, "--run-dir", self.run_dir, "--scope", "units", "cli.py")
         assert code == 0, s
         self.start = s
         self.base = s["base"]
@@ -87,6 +86,10 @@ class Lead:
             self.red[n] = r.stdout.strip().splitlines()[-1]
         r = sh(self.repo, sys.executable, self.code / "acceptance.py", s["baseline"], check=False)
         assert r.returncode == 1 and r.stdout.count("fail") == 4, r.stdout
+        # <worktrees> Start: every path git status lists in the baseline worktree after baseline is a gate byproduct
+        self.byproducts = [l[3:] for l in sh(s["baseline"], "git", "status", "--porcelain").stdout.splitlines()]
+        if self.byproducts:
+            assert self.wt("exclude", self.repo, *self.byproducts)[0] == 0
 
     def gate_file(self, node):
         return self.table_gate if node == "table" else f"test_{node}.py"
@@ -127,7 +130,7 @@ class Lead:
             "enforcement": {"kind": "instruction_only"},
             "graph": {k: [] for k in ("accepted", "running", "failed", "blocked", "dissent", "escalated", "not_started")},
             "outputs": [], "decisions": [{"kind": "approval_default", "reason": "autonomous mode"},
-                                         {"kind": "other", "reason": "__pycache__/ excluded before the first gate (gate byproduct)"}],
+                                         {"kind": "other", "reason": f"gate byproducts in the baseline worktree after baseline, excluded before any node ran: {self.byproducts or 'none'}"}],
             "assumptions": [{"id": "a1", "assumed": "yes"}], "open_issues": [], "unchecked_rules": [], "subagents": [],
             "audits": {"wellformed": {"exit_code": 0, "isolation": "na_code"},
                        "evidence": {"isolation": {"kind": "not_run", "reason": "not reached"}, "rows": 0, "miscited": 0, "unfound": 0, "verdict": "not_run", "notes": []}},

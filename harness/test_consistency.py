@@ -2,6 +2,7 @@
 Every check here is a drift that has happened or nearly happened (see CALIBRATION-LOG.md, run 13).
 Run: python3 -m pytest -q harness/test_consistency.py"""
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -53,8 +54,10 @@ def test_changelog_is_the_backgrounds_changelog_verbatim():
 def test_recorded_word_count_is_the_prompts():
     newest = next(l for l in CHANGELOG.splitlines() if l.startswith(f"**v{prompt_version()}**"))
     recorded = int(re.findall(r"→ ([\d,]+) words", newest)[-1].replace(",", ""))
-    actual = int(subprocess.run(["wc", "-w", str(GRAPH / "SKILL.md")], capture_output=True, text=True).stdout.split()[0])
-    assert recorded == actual, "SKILL.md changed without its changelog word count (whole file, wc -w)"
+    # wc -w is locale-dependent (non-ASCII punctuation); the recorded series is in the C locale
+    actual = int(subprocess.run(["wc", "-w", str(GRAPH / "SKILL.md")], capture_output=True, text=True,
+                                env=dict(os.environ, LC_ALL="C")).stdout.split()[0])
+    assert recorded == actual, "SKILL.md changed without its changelog word count (whole file, LC_ALL=C wc -w)"
 
 
 def test_every_path_the_skills_name_exists():
