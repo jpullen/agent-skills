@@ -24,3 +24,9 @@ The adapter (`references/codex-adapter.md`, revision 1), the SKILL.md entry and 
 - Not included: `examples/report-review/` and `tests/test_report_consistency.py` — a scenario's report checker (patches 003/004, FOLLOWUP-01/02) — and the repository CI, consumer-binding and discovery-wrapper changes (FOLLOWUP-04/05/06), which target their repositories.
 - Adopted upstream as operator guidance, not prompt text: the suitability assessment (README "When to use the graph"; background §1a lever L6). The prompt's "One node is a valid graph" already allows the small case; the guidance says when not to open the record at all.
 - Their tests still assume the assembled layout (`kit/graph-record/example` beside `scripts/`); in this folder they do not run. `scripts/test_release.py` resolves the raw layout; the tests do not.
+
+## v3.6 (2026-11-20): self-contained in the publishing repository
+
+- The adapter no longer needs an assembled package to run here. `scripts/preflight.py` (`record_kit`) and `scripts/test_release.py` (`record_dir`) use `kit/graph-record/` when it exists and otherwise the repository's `plugins/graph-prompt/skills/graph-record/scripts/`; the toolchain fingerprint then also covers the prompt, `worktrees.py` and the record scripts. Nothing was imported from the original handoff.
+- Tests: 71 of 71 pass in this layout (38 failed before, all in `tests/test_preflight.py`, on the missing `kit/` folder). One fixture changed: `test_explicit_unchecked_rule_is_reported` now lists the unchecked rule in `progress.unchecked_rules`, which upstream has required since v3.5 (X32). `pytest.ini` collects `tests` only; the kit's own suite runs from `harness/run.py`.
+- Adapter revision 4: paths re-pointed, item 12 (worktree isolation) added, item 10 notes that upstream adopted the X12 exception. Items 1–11 were not re-reviewed line by line against v3.6 and no Codex run has used v3.6; the adapter says so.

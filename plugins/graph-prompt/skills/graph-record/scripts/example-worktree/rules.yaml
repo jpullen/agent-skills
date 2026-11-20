@@ -1,0 +1,3 @@
+rules:
+  - {id: s-namematch, spec: graph-prompt-v2.7.md, rule: every reads section appears in the upstream shape, section: layer_1_split, quote: "every section named in a node's reads appears in the shape", concerns: [deliverable]}
+  - {id: s-verdicts, spec: graph-prompt-v2.7.md, rule: verdict in the six-value table, section: layer_5_gates, quote: "every verdict is in the table", concerns: [deliverable, checks]}

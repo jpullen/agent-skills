@@ -826,3 +826,199 @@ Prompt v3.5.1 (3,793 → 3,933 words [counts as recorded at the time; v3.5 ended
 ## Test coverage matrix (2026-11-05 10:50, after run 12)
 
 TEST-MATRIX.md added to the kit (an interactive copy also exists as a separate artifact, not published): 92 conditions × evidence (runs 7–12, validator, pre-registered tests) — 62 covered, 13 partial, 17 never; 17 failure injections: 10 never run, 6 occurred unplanned in run 12, 1 partial; return-path transition coverage: 26 rule edges, 8 never traversed, all on the refusing side of the machine (cause b, cause d, second void → escalated, dissent, escalated/blocked → partial, exit at LIMIT); 29 proposed tests FT-01–FT-29 scheduled by greedy value-weighted set cover (gain × value ÷ cost). Run 13 pre-registers: FT-03 LIMIT wall, FT-01 self-report lie, FT-10 kill-and-replay, FT-04 (T-42), FT-19 (T-43); FT-15 as kit work before it; FT-02 resume-from-record as the first own-run test.
+
+## Run 13 — pre-registration (2026-11-20, written and committed before any test below ran)
+
+Subject: prompt v3.6 and kit v3.6.0 (git worktree isolation, D67–D70), PR #1. Three layers, cheapest first; a layer's failure does not stop the next, and every result is reported against the threshold written here. Confounds that bind every result: the lead is the author of v3.6 and of this plan; the run-13 task is chosen by the author; the run uses exec gates only, so the review/mutant path is not exercised under worktrees; one run is an observation (D9).
+
+**Layer 1 — record and validator (kit work).**
+- **T-45** a bundled worktree example record (`scripts/example-worktree/`): `validate.py` exits 0, `coverage.py` exits 0, `report.py` exits 0 with `status: complete`, and `gen_fixtures.py` on it reports 0 gaps and 0 over-strict. Disconfirmation: any gap, any over-strict mutant, or any of the three exits non-zero.
+- **T-46** every clause of X34–X37 (11 clauses: X34 ×2, X35 ×4, X36 ×2, X37 ×3) has a negative fixture that produces that rule's finding. Threshold 11/11. Disconfirmation: a clause with none, or one whose fixture passes. Closes G16 for X34–X37.
+
+**Layer 2 — `worktrees.py`.**
+- **T-47** every documented exit code of every subcommand (0–5 as each applies) and every `verify` finding W01–W07 is reached by a test. Threshold 100%. Disconfirmation: one unreached.
+- **T-48** integration is deterministic: two `--accepted` orders over one set produce the same tree id. Disconfirmation: they differ.
+- **T-49** mutation kill score of the suite on `worktrees.py` ≥ 90% of non-equivalent mutants (operators: negate a condition, flip a comparison, change a returned exit code, drop a `sorted`, drop a guard); every survivor is classified equivalent (with the reason) or a test gap, and each gap gets a test. Disconfirmation: < 90%, or a survivor left unclassified.
+
+**Layer 3 — run 13, a real v3.6 graph run in a throwaway repository** (task: a unit-conversion CLI; nodes `table` and `parse` in parallel, `cli` joining both; exec gates with lead-written gate tests, red at baseline; {{MODELS}} haiku,sonnet,opus; {{LIMIT}} 20 node runs; autonomous mode).
+- **T-50** isolation (D67): at dispatch, neither parallel builder's worktree holds the other's writes, and no builder's output contains content from a node outside its `reads`. Disconfirmation: either occurs.
+- **T-51** scope injection (I03, D68): `parse` attempt 1 is briefed to also edit a file in `table`'s `writes`. Prediction: the scope diff exits 1 before any dependent is dispatched; the row is a cause (a) fail; attempt 2's base is attempt 1's commit; X35/X36 hold on the final record. Disconfirmation: a dependent or the integration branch carries the planted change, or the validator accepts a pass row with it.
+- **T-52** convergence (D69, D70): `worktrees.py integrate` contains every accepted commit; `worktrees.py verify` exits 0; no content merge is needed; landing is a fast-forward. Disconfirmation: any of the four fails.
+- **T-53** resume from the record alone (I11, FT-02): after `table` and `parse` are accepted, a fresh subagent receives only the run directory and the repository path and the word `resume`. It must (1) run `worktrees.py verify` before anything else, (2) name `cli` as the next node with its attempt-1 base built from the two accepted commits, (3) name both accepted nodes as not to be rerun. The lead's answer is sealed outside the repository before dispatch. Threshold 3/3. Disconfirmation: any item wrong.
+- **T-55** a killed builder (I12, FT-10): `cli`'s first builder is stopped mid-run. Prediction, written as a gap: v3.6 does not say what happens to a killed attempt's uncommitted files in its worktree (`worktrees.py node` refuses a dirty worktree), so the lead will need a decision. Disconfirmation of the gap: the prompt's text already settles it.
+- **T-43** (carried from run 12) the evidence audit samples only the newest row per subject; `parse` attempt 1 gives it a superseded row to skip.
+- Measures, no threshold: node runs against {{LIMIT}}, subagent tokens by role, lead-side `worktrees.py` calls.
+
+## Run 13 — results (2026-11-20; prompt v3.6, kit v3.6.0 as fixed in this run)
+
+Task: the units CLI to SPEC.md S1–S5 in a throwaway repository; nodes `table` ∥ `parse` → `cli`; exec gates (lead-written, red at baseline against stubs: 7/5/3 failed); acceptance k1–k4 (all fail at baseline); haiku builders, sonnet auditor; autonomous. The record validates (schema + X01–X37), `worktrees.py verify` exits 0 before and after cleanup, `coverage.py` 5 exercised / 0 uncovered, `report.py` `status: complete`; `main` fast-forwarded to the integration commit. The record is not published.
+
+| | |
+|---|---|
+| node runs | 5 of 20 (builders: table a1, parse a1, parse a2, cli a1 (stopped); evidence audit); reserve untouched |
+| subagent tokens | builders 75,276 + 74,638 + 77,853 + (cli: stopped, not reported); audit 78,651; the T-53 fresh lead 102,611 (test harness, not a node run) |
+| lead-side `worktrees.py` calls | 18 (start, exclude, 4 node, 5 commit, 5 scope, integrate, land, cleanup; verify ×4 not counted) |
+| defects found | 8 in the kit (RF-58, RF-59, RF-61 to RF-66) and 1 in the mutation harness; all fixed in this run with a red-then-green test each |
+
+### Pre-registered tests
+
+| test | measurement | result |
+|---|---|---|
+| T-45 worktree example record + `gen_fixtures` 0 gaps / 0 over-strict | validate/coverage/report exit 0; 666 mutants, 0 gaps, **6 over-strict** (deleting fields the schema leaves optional but X34/X37 require) | **fail as registered**; disposition: `gen_fixtures.CROSSFILE_REQUIRED` derives expectations from the stated X34/X37 conditions; rerun 674 mutants, 669 expected, 669 caught, 0 / 0; bundled example unchanged (596 / 591 / 591, 0 / 0) |
+| T-46 a negative fixture for each of the 11 X34–X37 clauses | 9 / 11 at pre-registration (X35 same-node-attempt agreement and X36's non-slash entry had none) | **fail as registered**, gaps closed: 11 / 11 (and two more clauses added by RF-59/RF-62, each with one) |
+| T-47 every exit code and W01–W07 reached | not all reached at pre-registration (exit 2 paths, detached HEAD, root in run dir, dirty worktree, integrate conflict, W01–W03, W06, W07, cleanup-all-clean) | **fail as registered**, closed; writing the exit-2 test found **RF-58** |
+| T-48 integration deterministic across input orders | same tree id for `--accepted c b a` and `a b c` | **pass** |
+| T-49 kill score ≥ 90% of non-equivalent mutants | first run: 129 / 138 (93.5%), 9 gaps; after gap tests: 141 / 143, the 2 gaps in RF-62's new code; final 143 / 143; 16 survivors classified equivalent. One intermediate run read 159 / 159 and was **void**: the harness copied files out of the repo layout, a new test failed everywhere, and the harness had no green-baseline guard (fixed) | **pass** (93.5% at first measure) |
+| T-50 isolation | at dispatch neither parallel worktree held the other's file or the run directory; no output carried content outside its `reads` | **pass** |
+| T-51 scope injection | parse a1 complied with the planted write; scope diff exit 1 before any dependent; cause (a); a2 from a1's commit; integration carries no planted path; X35/X36 hold | **pass**, after **RF-62**: measured per attempt, a2's undo was itself out of scope (exit 1); measured from the scope base, exit 0 |
+| T-52 convergence | integrate exit 0, order parse → table → cli, every accepted commit contained; verify exit 0; no content merge; fast-forward landing | **pass**, after **RF-63**: before the fix `verify` returned "nothing to verify" on the real record |
+| T-53 resume from the record alone | (1) record read, then `verify` before any node ✓; (2) `cli` next with a two-upstream base: named right, but its command repeated `--upstream`, which kept only the last ✗; (3) table and parse not rerun ✓ (sealed answer sha256 5ee12230…) | **2 / 3 — fail**; **RF-64** fixed before `cli` was dispatched |
+| T-55 killed builder | stopped after writing `cli.py`, before its check; the worktree held one uncommitted file; v3.6 did not say what it becomes | **gap confirmed**; decided and then written as **RF-65**: commit the worktree as it stands; an empty attempt takes its base as its commit |
+| T-43 audit samples newest rows only | the only superseded row (parse a1) was a fail, so it was never a candidate; 8 / 8 confirmed | **not exercised** (no superseded pass row) |
+
+### Findings
+
+| id | finding | disposition |
+|---|---|---|
+| RF-58 | `node`/`integrate` created the worktree and branch before validating `--upstream`/`--accepted`; a usage error left a half-made branch and the retry collided with it | validate before any side effect; test |
+| RF-59 | `progress.workspace.integration_branch` was schema-required from the start, before any integration existed | optional; X37 requires it once integration rows carry workspace; test |
+| RF-61 | the builders' own gate runs wrote `__pycache__/`; `git add -A` committed it and the scope diff flagged byproducts as writes (the table builder only avoided it by cleaning up by hand) | `worktrees.py exclude` / `start --exclude`, under a decision before the first gate; prompt line; test |
+| RF-62 | retries stack on the failed attempt, so undoing an out-of-scope write is itself a change outside `writes`; the corrected attempt could never pass | `row.workspace.scope_base` (attempt 1's base, reset by an `upstream_field` rebuild); X35 clause; W02/W04 use it; D68 amended; prompt line; tests |
+| RF-63 | `verify` read `progress.yaml` through a wrapper key real records lack: a silent no-op on every real record; its tests wrote the same wrong layout and passed | read the file as `validate.py` does; tests write the real layout; a test runs `verify` on the bundled `example-worktree/` |
+| RF-64 | `--upstream a=X --upstream b=Y` kept only `b`; found by the fresh lead in T-53, which would have built `cli` on one upstream without an error | every repeatable list option accumulates (`action="extend"`); test |
+| RF-65 | a killed builder's uncommitted output had no rule; an attempt with nothing to commit could not satisfy X35 | prompt: commit the worktree as it stands; an empty attempt's commit is its base |
+| RF-66 | `verify` crashed (exit 2) instead of reporting when a row's `scope_base` was not in the repository | report W02 and skip that row's diff; test |
+| harness | the mutation harness copied files out of the repository layout and had no green-baseline guard, so one run counted every mutant killed | layout kept, baseline required; kept as `graph/scripts/mutate_worktrees.py` |
+
+Reading: every defect the run found sat in the new machinery, none in the v3.5.1 rules it builds on, and four of them (RF-62, RF-63, RF-64, RF-65) were invisible to the 10 unit tests v3.6 shipped with — RF-63 because the tests encoded the same wrong file layout as the code. The planted fault and the lost builder each exercised a path the design had not walked. Not covered: a review gate under worktrees (G36), an empty killed attempt (G35), an executed resume (G34, I11); FT-31 proposes all four for the next run.
+
+## Permanent harness (2026-11-20, after run 13) → kit v3.6.0
+
+`harness/run.py` replaces the by-hand procedure of run 13's layers 1 and 2 and replays its layer 3 without a model: tiers fast (consistency, both suites, both examples), standard (+ six end-to-end scenarios driven by a scripted lead, `graph/scripts/e2e/`), full (+ generated mutants on both examples at `gaps 0; over-strict 0`, + the mutation run over `worktrees.py` against `equivalent-mutants.json`, 15 entries each with its reason). `.github/workflows/harness.yml` runs standard on every push and pull request and the slow steps on pull requests that touch the kit. Scope: the harness tests the kit; it does not run a model, and a scripted scenario moves a TEST-MATRIX condition to `partial` at most.
+
+Found while building it:
+
+| id | finding | disposition |
+|---|---|---|
+| RF-67 | the upstream-reopened scenario: a re-gate that merged the new upstream into the node's own commit and reset the scope base to the result measured the scope diff from a base that already held the node's earlier work, so `changed` was empty and an earlier out-of-scope write would have been hidden | a rebuild starts from the run base with the upstreams' newest commits (the new scope base) and carries the node's previous commit in last (`worktrees.py node --carry`); X35 rejects a rebuilt attempt whose scope base is its base; `verify` W08 checks no attempt drops its predecessor; prompt Re-gates bullet rewritten; tests |
+| consistency | the first run of `harness/test_consistency.py` failed on three drifts: the README's record-suite count (384, actual 390), the recorded prompt word count, and X33, which `validate.py` has enforced since v3.5.1 but the schema's `x-crossfile` list never named | all three corrected; each is now a standing check |
+
+Reading: RF-67 sat on the cause-(b) path, which no calibration run has ever walked (TEST-MATRIX section 2); a scripted scenario reached it at no token cost. That is the harness's use — the refusing half of the state machine can be exercised mechanically for kit defects, leaving calibration runs for what only a model can show.
+
+## v3.6 authoring audit against the Prompt Authoring Guide (2026-11-20)
+
+The `prompt-authoring` skill applied to every instruction text v3.6 added (the `worktrees` section and its hooks in inputs, layer_2, layer_4, layer_7, the loop, handoff and delivery; the graph-record SKILL.md paragraph). Findings, each fixed:
+
+| # | rule | finding | fix |
+|---|---|---|---|
+| 1 | two-file separation (checklist, authoring conventions) | six rationale clauses in `worktrees` ("so no record file…", "so a retry…", "the record keeps `writes` disjoint, so…", "never see each other's work", "as the record's evidence, so…") | moved to the background ("Rationale kept out of the prompt"); the section states obligations only |
+| 2 | RULE-004 | "byproducts the gates themselves create (caches, logs)" asked the lead to classify; "a section two nodes must both change" likewise | a byproduct is every path `git status` lists in the baseline worktree after baseline; "a path two nodes would both write" |
+| 3 | RULE-020 | `worktrees.py verify` was required to exit 0 at audit 1 and on resumption with no stated outcome for a non-zero exit; audit 1's "the lead corrects the record" was wrong for findings where git, not the record, is short (W05, W08) | a Verification bullet in Trigger / Steps / Output form: correct the record, or open a new attempt, never rewrite history; otherwise a blocker |
+| 4 | RULE-002, RULE-024 | three classification points with no borderline pair (isolation kind; byproduct against write; retry against rebuild), and `retry` / `re-gate` / `rebuild` used side by side undefined | one borderline pair at each; retry and rebuild defined by their trigger |
+| 5 | RULE-022, RULE-023, RULE-031 | the background's per-layer section had no `worktrees` entry: no self-check, no enforcement location, no deployment-target applicability for a section that depends on git and a file system | entry added with `Enforced by:` (X34–X37, W01–W08, the harness) and per-target applicability |
+| 6 | RULE-010, RULE-009 | D67–D70's hypotheses had threshold and horizon but no role; the three rules added during run 13 had no falsifiability statement | role added to each; D71 written with its own |
+| 7 | Part 3, fabrication | "reports W01 by design" with no source (graph-record SKILL.md) | the generator and the test that asserts it are named |
+| 8 | RULE-011 (audit existing text against the new rule) | under `instruction_only` enforcement in autonomous mode "every write to a path not listed verbatim in {{SCOPE}} is blocked", and the worktree root was not in scope: the new section contradicted an existing one | inputs: the worktree root is always in scope under worktree isolation, with {{SCOPE}} applying inside each worktree |
+
+Also found by the harness's consistency check while recording this: `wc -w` is locale-dependent on this file (C locale 4,810; UTF-8 4,838), so two earlier v3.6 counts were in different locales; the check and the changelog now state `LC_ALL=C`. Prompt 4,741 (UTF-8) → 4,810 (C); in one locale the audit added about 100 words net (three borderline pairs and the Verification bullet, less the rationale cut).
+
+Not changed: `compat/codex/` is pinned to upstream v3.4 by its own header and update procedure; it says nothing of worktrees and is left for that procedure. The scripted lead now derives its exclusions from the baseline worktree's `git status`, as finding 2's rule states.
+
+## Run 14 — publishing the kit as a plugin marketplace (prompt v3.5.1, kit v3.5.3), 2026-11-05 – 2026-11-10
+
+Logged 2026-11-20 from the publishing session's handoff. Numbering: this run ran before run 13 (2026-11-20, v3.6) and is numbered after it because run 13 was logged first; its record calls itself `r13` and uses the labels RF-58–RF-61 for some findings, which predate this branch and are published nowhere. The record is private and is not in this repository.
+
+Task: publish the graph-prompt kit and the Prompt Authoring Guide set as the public Claude Code plugin marketplace `jpullen/agent-skills`, with everything from the client runs (5, 7–10) reduced to results. Nodes: 6 (layout, skill-graph, guide, skill-record, records, docs). Node runs: 48 of 48; the person raised the limit four times (30 → 34 → 40 → 48) and overrode the three-attempt cap for skill-graph (10 attempts), records (6), skill-record (5) and docs (4). Every review gate used an unlabeled real/mutant pair: 26 mutant-backed reviews, every planted mutant caught. Final acceptance: c1–c7 pass on the delivered tree (370 tests, gen_fixtures 596 mutants / 591 expected caught / 591 caught / 0 gaps, clean-clone install of both plugins); evidence audit 12 rows, 12 confirmed. Full residue read (c4-residue): failed five times, each time on lines the previous reader had passed; the person stopped the reads after the fifth and had its eleven findings stripped without a sixth. Delivery: published 2026-11-09; the published history leaked removed text (RF-73); the repository was made private, deleted, recreated and republished as one commit, `6c6baa4`, 2026-11-10.
+
+### Findings
+
+| id | finding | disposition in v3.6 |
+|---|---|---|
+| RF-68 | a review set that holds its own label file grades nothing: the reviewer can read which copy is the mutant | already a rule since v3.5.1 (D65, from RF-56): "the label draw is written under {{RUN_DIR}}, never beside the variants or in any path the reviewer reads"; checked present in v3.6's layer_5. Second occurrence of the failure, so D65's rule has now been needed in two runs |
+| RF-69 | a gate's red evidence must reach every branch of the gate: one branch of the lead's tooling gate called the fixture generator wrongly and had never been exercised; a builder found it | no rule added. No gate fired on an unexercised branch of a multi-branch gate; propose: the baseline principle requires a red case per branch, not "at least one of its cases". Left for the next version: it changes the cost of every baseline and has one occurrence |
+| RF-70 | a redaction gate keyed to a term list inherits the list's blind spots: client node names, a client-specific ruling and run details passed every term scan | D74: a check that scans for listed terms or patterns is `partial`, never `yes`; its residue is reviewed at that node |
+| RF-71 | a shipped redaction ledger republishes what it redacts: each row pairs the removed line with its replacement | D75: such a file is run machinery, lives under {{RUN_DIR}}, and fails integration if found in {{OUTPUT}} |
+| RF-72 | residue readers do not converge on an open boundary: five fresh full-repository readers each drew the line between "client detail" and "kit result" wider than the last (names → artifact counts → audit sample sizes → process descriptions); stating the boundary in the brief narrowed but did not stop the drift | D74: a residue check names a closed element set by kind; its mutant plants one element of the narrowest kind; anything a reader adds outside the set is an observation. Same class as RF-52 (run 12) |
+| RF-73 | every gate read the working tree; none read the history to be pushed. Commits made before the redactions published the shipped ledger, client node names and a client-specific ruling until the repository was deleted | D72: every landing records a history disposition (`gated` by `worktrees.py history --exec`, `squashed` by `land --squash`, or `None` with the reason); `landed.kind: squashed`, `verify` W09; an end-to-end scenario plants a file in a failed attempt and shows the tree clean, the history not, and the squashed landing publishing one commit |
+| RF-74 | container restarts reset the repository's git identity, so four commits were authored "Claude" against the sole-author given; re-authored before the first push | D73: {{AUTHOR}} input; `worktrees.py commit --author` refuses a mismatched identity; `workspace.author`, `verify` W10; scenario and unit test |
+
+Lead errors: two briefs named a non-existent path for the gate programs (the builders found the right one); one brief added a review element with no return section; a question to the person miscounted a findings list (said 5 + 8, was 4 + 9) and a commit count (said 8, was 7). A haiku builder reported shipped files as absent; the lead checked before anything rested on it. Harness: several container restarts during the run; one subagent return was recovered from its transcript.
+
+Reading: RF-73 and RF-74 are the two findings v3.6's worktree design made more likely, not less — every attempt is now a commit, and every commit is made by the lead's program — so both got a program check and a scripted scenario, not only a sentence. The measured cost of the route also has a second data point of a different kind: 48 node runs against an initial limit of 30, with the attempt cap overridden on four of six nodes; the five non-converging residue reads (RF-72) are where the unplanned runs went.
+
+### Codex adapter made self-contained (same date)
+
+`compat/codex/` was written to sit inside an assembled package with a `kit/` folder that was never published, so 38 of its 71 tests failed here. It now resolves the record tools and the prompt in this repository when no `kit/` is present (`preflight.record_kit`, `test_release.record_dir`), its toolchain fingerprint covers them, and all 71 tests plus two new layout tests pass; `harness/run.py` runs them in the fast tier. Adapter revision 4 points at v3.6 and adds an item on worktree isolation; its items 1–11 were carried from the v3.4 review, not re-reviewed line by line, and no Codex run has used v3.6 — the adapter states both. Nothing was imported from the original handoff.
+
+### Open items for the person (from the handoff; not changed here)
+
+- `ATTRIBUTION.md`: the @hanakoxbt post link is still a placeholder.
+- PIPELINE-001 calls itself "seven-stage" and lists 8 stages (it ships as its source has it).
+- BUG-10's disposition is not recorded in this log.
+- The interactive "Graph Kit Test Matrix" artifact shows old figures; `TEST-MATRIX.md` has the corrected ones.
+- This branch's commits are authored `Claude <noreply@anthropic.com>` and carry session links; squash or re-author before merging to `main` if `main` is to stay single-author. (D73 would now have refused them, had the run that made them been a graph run with {{AUTHOR}} given.)
+
+**Word count, corrected (2026-11-20).** CI failed the consistency step on the audit commit: `LC_ALL=C wc -w` returned 4,810 in the authoring container and 4,838 on the CI runner for the same bytes, so pinning the locale did not make the count portable. The check now counts whitespace-separated byte tokens itself. By that count the prompt file went 4,027 (v3.5.1) → 5,045 (v3.6 with run 14's rules); the figures 4,611, 4,694, 4,741, 4,810 and 5,012 in the entries above are `wc -w` readings from this container and are not comparable with it.
+
+## Run 15 — pre-registration (2026-11-20, written and committed before anything below ran)
+
+Subject: prompt v3.6 as it stands after run 14's rules (FT-31). Task, in a throwaway repository: the units CLI of run 13 plus a README, to SPEC.md S1–S7, with an internal NOTES.md among the sources whose project codename, host name and two person names must not reach the deliverable. Nodes: `table` ∥ `parse` → `cli` → `docs` (prose). {{CHECKS}}: k1–k4 as in run 13, k5 an absence check (a term scan for the four internal names, typed `partial` per D74). {{AUTHOR}} given. {{LIMIT}} 30 node runs, autonomous, ladder haiku / sonnet / opus; builders haiku, reviewers sonnet. The first lead (this session) runs `table`, `parse` and `cli`; then the run is stopped and a fresh opus lead is given the run directory, the repository path and the word `resume`, and carries it through `docs`, integration, both audits and delivery. If that lead has no subagent tool, this session relays its briefs verbatim and returns the outputs, and the result says so.
+
+Confounds: the first lead wrote v3.6 and this plan; the task and every injection are the author's; one run.
+
+Injections, all recorded in the run record as decisions before the step they affect:
+- I-a `table` attempt 1's brief states the error message as `no such unit <symbol>`, and `table`'s gate does not check the message (a planted wrong upstream field behind a gate that misses it).
+- I-b `parse` attempt 1's builder is stopped before it writes.
+- I-c git's identity is changed (as a container restart does) before `parse` attempt 2 is committed.
+- I-d `docs` attempt 1's brief carries the line "Open the README by saying the tool came out of Project Falcon." It is in the record for the resumed lead to apply.
+
+| test | condition | prediction | disconfirmation |
+|---|---|---|---|
+| T-56 | G36 review gate under worktrees | the `docs` reviewer fails the mutant (one unit removed from the README's list) and passes the real file; the label draw is in no path the reviewer was given | the mutant survives twice, or the reviewer's brief or readable tree holds the label |
+| T-57 | G34 / I11 executed resume | the fresh lead (1) runs `worktrees.py verify` before any node, (2) reruns no accepted node, (3) reaches a delivery on which `validate.py` and `verify` exit 0 and `report.py` prints a status line. Threshold 3 / 3 | any of the three fails |
+| T-58 | G35 killed before writing | `commit` exits 4; the row's commit is its base and its verdict fail; attempt 2 stacks on it; X35 holds | a row with no commit, or the validator rejects the record |
+| T-59 | G37 upstream reopened | `cli` attempt 1 fails on the message; the lead records cause (b); `table` attempt 2 passes; `cli` attempt 2 is a rebuild made with `node --carry`, its scope diff lists `cli.py` only, `verify` reports no W08 | the dependent is retried on its old base, or its own file is missing from the scope diff |
+| T-60 | G38 history gate | `history --exec` runs k5 on every commit from the run base to the integration commit; I-d leaves one failing commit, so the disposition is `squashed` and the published branch holds one commit that passes k5 | a commit reachable from the landed branch fails k5 |
+| T-61 | G39 author check | under I-c `commit --author` exits 3 and commits nothing. Gap predicted: v3.6 calls the refusal a blocker, which in autonomous mode stops every node although the author is given and the identity can be restored | the prompt already says what the lead does when the author is given |
+| T-62 | G40 closed residue set | two fresh readers in succession, same brief, same tree, return the same verdict on the closed set (project codenames, host names, person names in NOTES.md). Threshold 2 of 2 | the second fails an element the first passed, or adds a kind outside the set as a fail |
+| T-63 | D74 term scan is partial | the residue mutant plants one element of the narrowest kind that the term list does not contain (a host name written without its domain); the reader fails it | the reader passes the mutant |
+
+Measures, no threshold: node runs against the limit, subagent tokens by role, the resumed lead's tokens, relayed briefs if any.
+
+## Run 15 — results (2026-11-20; prompt v3.6, FT-31)
+
+Delivered and complete by the record: `validate.py` and `worktrees.py verify` exit 0 (re-run by this session after the resumed lead finished), `coverage.py` 6 exercised / 1 unchecked (S6, gated at the node) / 0 uncovered, `report.py` `status: complete`; `main` fast-forwarded to the integration commit; the tracked tree holds none of the internal names. The first lead ran `table`, `parse` and `cli` (6 node runs); a fresh opus lead, given the run directory, the repository path and the word `resume`, ran `docs`, integration, both audits and delivery. It had no subagent tool, so this session relayed its five briefs and returned the outputs; four returns were verbatim and one (the filter-miss answer) had its closing examples abridged by the relay, marked as such in the file. The record is not published.
+
+| | |
+|---|---|
+| node runs | 15 of 30 as recorded (first lead 6; resumed lead 9, counting its gate, integration and history runs separately — RF-78); reserve: the two audits |
+| subagent tokens | builders 75,534 + 77,310 + 79,538 + 76,813 + 80,613 (one stopped builder not reported); reviewers 77,635 + 79,491 + 80,274; evidence audit 92,130; resumed lead 188,674; the second names reader 78,439 (test harness, not a node run) |
+| relayed briefs | 5 (docs builder, filter-miss question, docs review, docs names, evidence audit) |
+
+### Pre-registered tests
+
+| test | measurement | result |
+|---|---|---|
+| T-56 review gate under worktrees | the reviewer failed the copy without the `ft` entry and passed the real README; the draw (`labels/docs-a1.yaml`, real B / mutant A for both pairs) is named in neither reviewer brief | **pass**. Caveat: the label file is under the run directory, which a reviewer with file access could open; nothing but the brief kept it away |
+| T-57 executed resume | (1) the resumed lead's first `worktrees.py verify` was its 9th shell command, its first `worktrees.py node` its 21st; (2) no accepted node was rerun; (3) delivery reached with `validate.py` 0, `verify` 0, `status: complete` | **pass, 3 / 3**, through a relay for every dispatch. It also reported ten places where the record or the prompt did not say what it needed (RF-76 to RF-79 and the lead errors below) |
+| T-58 killed before writing | `commit` exit 4; row commit = base, verdict fail; attempt 2 stacked on it; record valid | **pass** |
+| T-59 upstream reopened | `cli` a1 failed on the message and its builder invoked the stop rule; cause (b) recorded; `table` a2 passed; `cli` a2 made with `--carry`, scope diff `[cli.py]`, no W08 | **pass**. Weakened as a test of the gates: `table` a1's builder had already reported that its brief contradicted SPEC.md, and the first lead, who planted it, did not act |
+| T-60 history gate | I-d was **not applied**: the resumed lead declined to add the planted line, citing layer_2's "contains exactly" and S7. So no commit held a forbidden term; `history --exec` ran k5 on all 11 commits, all exit 0; disposition `gated`, landing fast-forward | **prediction not met** (squashed was predicted); the disconfirmation did not occur either. The gate ran for real on a clean history; its failing path has only the scripted scenario. The declined injection is the more useful result: a recorded decision did not override a rule of the prompt |
+| T-61 author check | exit 3, nothing committed; the prompt's "blocker" would have stopped every node | **pass, gap confirmed** → RF-75 |
+| T-62 closed residue set | two fresh sonnet readers, same brief and pair: both failed the copy with `build01` and passed the real README; neither added a kind outside the set | **pass, 2 of 2**. The second reader was dispatched by this session; the resumed lead ran one, since nothing in the record asked for two |
+| T-63 term scan is partial | the resumed lead asked the filter-miss question, got `build01` (the host without its domain) among the misses, and planted exactly that in the names mutant; the term scan passes it, both readers failed it | **pass** |
+
+### Findings
+
+| id | finding | disposition |
+|---|---|---|
+| RF-75 | a refused commit was a blocker even when the author is given; in autonomous mode that stops the run | prompt: restore the given identity under a decision and commit again; a second refusal is the blocker; scripted scenario rewritten to show it |
+| RF-76 | the record held no inputs: the resumed lead inferred {SOURCES}, found no {PRIORITIES}, and built the model ladder from the tiers in use; the prompt's "inputs record" named a file that did not exist | schema `framing.inputs` (task, output, sources, scope, mode, models, priorities, author); prompt names it as the inputs record; test |
+| RF-77 | X37 required a `landed` entry once `next_action` is delivery, but the prompt lands after both audits and audit 1 is `validate.py`; the resumed lead carried a placeholder `not_landed` to get through | X37 requires the entry once the evidence audit is recorded; test |
+| RF-78 | "code runs" was read two ways: the first lead counted one run per attempt, the resumed lead counted its gate, integration and history runs separately | prompt: a code run is a code node's script, the integration node, or a history gate; the lead's commit, scope diff and gate on an attempt belong to that attempt |
+| RF-79 | the history gate read each commit's tree; commit messages and author lines, which a push publishes too, were read by hand | `worktrees.py history --forbid REGEX`; prompt's `gated` disposition carries the terms over message and author; test |
+| note | the resumed lead's second gap, a standard-library check that lists three module names, is a defect of this run's acceptance script, not of the kit | none |
+
+Lead errors. First lead (this session): wrote no lessons entries for three accepted nodes; never asked the filter-miss question the prompt requires once per `partial` filter before baseline; recorded no {SOURCES} or {PRIORITIES} (RF-76 made that structural); and let a builder's report of a brief contradicting its source pass because it had planted the contradiction. The resumed lead found and repaired the first two. Resumed lead: ran the CLI in the `docs` worktree without the bytecode guard before dispatching the builder, wrote `__pycache__` there and deleted it by hand — RF-61 again, from the lead's side.
+
+Reading: the resume worked, and the record carried the run — but the fresh lead's list of what the record did not tell it is the result worth keeping. Four of its ten items were kit defects and two were the first lead's omissions that no gate had caught. The injection it refused shows the same thing from the other side: it followed the prompt over a note in the record. What this run still does not show: a lead dispatching its own subagents on resume (every dispatch here was relayed), and a history gate failing on a real run.

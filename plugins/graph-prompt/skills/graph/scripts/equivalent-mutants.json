@@ -1,0 +1,97 @@
+[
+ {
+  "op": "fail3->2",
+  "code": "raise Fail(3, {\"error\": \"accepted commits not contained in the integration commit\", \"nodes\": missing})",
+  "reason": "unreachable: every accepted commit was just merged without conflict, so it is an ancestor of HEAD; the branch is a defensive check and its exit code cannot be observed"
+ },
+ {
+  "op": "sorted->list",
+  "code": "unknown = sorted(set(pairs) - set(order))",
+  "reason": "only the order of node names inside an error message changes"
+ },
+ {
+  "op": "sorted->list",
+  "code": "findings.append(f\"W04 {who}: changed list differs from git diff (git has {sorted(diff ^ set(w['changed']))} different)\")",
+  "reason": "only the order of paths inside a finding's message changes"
+ },
+ {
+  "op": "sorted->list",
+  "code": "for node in sorted(accepted):",
+  "reason": "only the order in which W05 findings are printed changes"
+ },
+ {
+  "op": "sorted->list",
+  "code": "for node, (_, sha) in sorted(newest.items()):",
+  "reason": "only the order in which W06 findings are printed changes"
+ },
+ {
+  "op": "gt->ge",
+  "code": "if not cur or r[\"attempt\"] > cur[0]:",
+  "reason": "rows of one subject at one attempt carry the same commit (X35), so replacing on an equal attempt stores the same value"
+ },
+ {
+  "op": "and->or",
+  "code": "raise Fail(3, {\"error\": \"the run directory is tracked; every worktree would carry the record and its gate programs\", \"run_dir\": rel})",
+  "reason": "the mutated token is the word 'and' inside an error message"
+ },
+ {
+  "op": "or->and",
+  "code": "raise Fail(2, {\"error\": \"--graph is required to order two or more commits\"})",
+  "reason": "the mutated token is the word 'or' inside an error message"
+ },
+ {
+  "op": "or->and",
+  "code": "raise Fail(2, {\"error\": \"give --writes, or --graph with --node\"})",
+  "reason": "the mutated token is the word 'or' inside an error message"
+ },
+ {
+  "op": "or->and",
+  "code": "who = f\"{s.get('node') or s.get('item') or s['kind']}#{r['attempt']}\"",
+  "reason": "changes only the label printed in front of a finding"
+ },
+ {
+  "op": "or->and",
+  "code": "findings.append(f\"W01 {who}: commit or base not in the repository\"); continue",
+  "reason": "the mutated token is the word 'or' inside a finding's message"
+ },
+ {
+  "op": "or->and",
+  "code": "findings.append(f\"W02 {who}: base is not an ancestor of commit, or scope_base is not an ancestor of base\")",
+  "reason": "the mutated token is the word 'or' inside a finding's message"
+ },
+ {
+  "op": "or->and",
+  "code": "findings.append(f\"W03 {who}: branch {w['branch']} tip is {tip[:12] or 'missing'}, not the recorded commit\")",
+  "reason": "changes only the text shown for a missing branch tip inside a finding's message"
+ },
+ {
+  "op": "or->and",
+  "code": "if not tip or not exists(landed[\"commit\"]) or not is_ancestor(repo, landed[\"commit\"], tip):",
+  "reason": "with no tip, is_ancestor(commit, '') is false, so the third operand still reports W07; with a tip, the first operand is false either way"
+ },
+ {
+  "op": "or->and",
+  "code": "return 5, {\"kind\": \"not_landed\", \"reason\": \"not a fast-forward of \" + a.branch + \": \" + (r.stderr.strip().splitlines() or [\"git refused\"])[-1]}",
+  "reason": "changes only the fallback text of the not_landed reason"
+ },
+ {
+  "op": "sorted->list",
+  "code": "tips = sorted({sha for sha in attempts.values() if exists(sha)} | ({integ[1]} if integ and exists(integ[1]) else set()))",
+  "reason": "only the order in which W10 findings are printed changes"
+ },
+ {
+  "op": "ffonly->ff",
+  "code": "r = git(a.repo, \"merge\", \"--ff-only\", new, check=False)",
+  "reason": "the squashed commit is a child of the run base and HEAD was just checked to be the run base, so the merge is a fast-forward or fails either way"
+ },
+ {
+  "op": "and->or",
+  "code": "raise Fail(2, {\"error\": \"--squash needs --base and --message\"})",
+  "reason": "the mutated token is the word 'and' inside an error message"
+ },
+ {
+  "op": "or->and",
+  "code": "return 5, {\"kind\": \"not_landed\", \"reason\": \"the squashed commit could not be checked out: \" + (r.stderr.strip().splitlines() or [\"git refused\"])[-1]}",
+  "reason": "changes only the fallback text of the not_landed reason"
+ }
+]

@@ -443,6 +443,7 @@ def crossfile_findings(rec, models, artifacts, run_dir):
             m = _re.search(r"(?:^|&&|;)\s*cd\s+(\S+)", ev["command"])
             if m and not m.group(1).startswith(("/", "~", "$")):
                 f.append(("X33", f"checks row {i} evidence.command", f"cd {m.group(1)} is relative; cite an absolute path"))
+    f += workspace_findings(rec)
     # X26 rows == 0
     e = prog.get("audits", {}).get("evidence", {})
     if e and e.get("rows", 0) == 0 and e.get("verdict") == "fail":
@@ -450,6 +451,92 @@ def crossfile_findings(rec, models, artifacts, run_dir):
     # X19 — prose rules: report count only
     manual = [r for r in rec.get("rules", {}).get("rules", []) if set(r.get("concerns", [])) & {"graph", "checks", "progress"}]
     return f, len(manual)
+
+
+def workspace_findings(rec):
+    """X34-X37 (v3.6, D67-D70): worktree isolation as the record states it. Git itself is not read here;
+    ancestry and diff agreement are checked by the graph skill's worktrees.py verify."""
+    f = []
+    rows = rec.get("checks", {}).get("rows", [])
+    prog = rec.get("progress", {})
+    ws = prog.get("workspace") or {}
+    nodes = {n["id"]: n for n in rec.get("graph", {}).get("nodes", [])}
+    worktree = ws.get("kind") == "worktree"
+    # X34 presence
+    for r in rows:
+        ran = (r.get("evidence") or {}).get("kind") != "not_run"
+        if worktree and ran and "workspace" not in r:
+            f.append(("X34", _subj(r), "ran under worktree isolation but carries no workspace"))
+        if not worktree and "workspace" in r:
+            f.append(("X34", _subj(r), "carries workspace but progress.workspace.kind is not worktree"))
+    if not worktree:
+        return f
+    # X35 consistency
+    by_key, branch_owner = {}, {}
+    for r in rows:
+        w = r.get("workspace")
+        if not w:
+            continue
+        s = r["subject"]
+        key = ("node", s.get("node"), r["attempt"]) if s.get("kind") == "node" else ("integration", None, r["attempt"])
+        if key in by_key and by_key[key] != w:
+            f.append(("X35", _subj(r), "rows of one subject and attempt carry different workspace"))
+        by_key.setdefault(key, w)
+        owner = s.get("node") if s.get("kind") == "node" else "integration"
+        if w["branch"] in branch_owner and branch_owner[w["branch"]] != owner:
+            f.append(("X35", _subj(r), f"branch {w['branch']} is also {branch_owner[w['branch']]}'s"))
+        branch_owner.setdefault(w["branch"], owner)
+    rebased = {(h.get("node"), h.get("before_attempt")) for h in prog.get("hypotheses", []) if h.get("cause") == "upstream_field"}
+    for (kind, node, attempt), w in by_key.items():
+        if kind != "node" or attempt < 2 or (node, attempt) in rebased:
+            continue
+        prev = by_key.get(("node", node, attempt - 1))
+        if prev and w["base"] != prev["commit"]:
+            f.append(("X35", f"{node}#{attempt}", f"base {w['base'][:12]} is not attempt {attempt - 1}'s commit {prev['commit'][:12]}"))
+    # X35 scope_base (RF-62, RF-67): attempt 1's is its base; it changes only at an upstream_field rebuild; integration rows measure from their base
+    last = {}
+    for (kind, node, attempt), w in sorted(by_key.items(), key=lambda kv: (kv[0][0], kv[0][1] or "", kv[0][2])):
+        if kind == "integration":
+            want = w["base"]
+        elif node not in last:
+            want = w["base"] if attempt == 1 else w["scope_base"]
+        elif (node, attempt) in rebased:
+            want = w["scope_base"]
+            if w["scope_base"] == w["base"]:
+                f.append(("X35", f"{node}#{attempt}", "a rebuilt attempt's scope_base is its upstream base, not its base (the base also carries the node's earlier commits)"))
+        else:
+            want = last[node]
+        if w["scope_base"] != want:
+            f.append(("X35", f"{node or 'integration'}#{attempt}", f"scope_base {w['scope_base'][:12]} is not {want[:12]}"))
+        if kind == "node":
+            last[node] = w["scope_base"]
+    # X36 scope
+    for r in rows:
+        w, s = r.get("workspace"), r["subject"]
+        if not w or s.get("kind") != "node" or r["verdict"] not in ("pass", "dissent") or s.get("node") not in nodes:
+            continue
+        writes = nodes[s["node"]]["writes"]
+        for p in w["changed"]:
+            if not any(p == x or (x.endswith("/") and p.startswith(x)) for x in writes):
+                f.append(("X36", _subj(r), f"changed {p} is outside writes"))
+    # X37 convergence. Landing follows both audits (RF-77): the entry is required once the evidence audit is recorded,
+    # so the record can validate at audit 1 with next_action already at delivery.
+    delivering = (prog.get("next_action", {}).get("kind") == "delivery"
+                  and prog.get("audits", {}).get("evidence", {}).get("verdict", "not_run") != "not_run")
+    integ = [k for k in by_key if k[0] == "integration"]
+    if integ:
+        newest = by_key[max(integ, key=lambda k: k[2])]
+        if newest["branch"] != ws.get("integration_branch"):
+            f.append(("X37", "progress.workspace", f"integration_branch {ws.get('integration_branch')} is not the newest integration attempt's branch {newest['branch']}"))
+        landed = ws.get("landed")
+        if delivering:
+            if not landed:
+                f.append(("X37", "progress.workspace", "delivery under worktree isolation with no landed entry"))
+            elif landed["kind"] == "fast_forward" and landed["commit"] != newest["commit"]:
+                f.append(("X37", "progress.workspace.landed", "fast_forward commit is not the newest integration commit"))
+    elif delivering and not ws.get("landed"):
+        f.append(("X37", "progress.workspace", "delivery under worktree isolation with no landed entry"))
+    return f
 
 
 def _subj(r):
