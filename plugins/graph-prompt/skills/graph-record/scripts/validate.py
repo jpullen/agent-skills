@@ -493,6 +493,18 @@ def workspace_findings(rec):
         prev = by_key.get(("node", node, attempt - 1))
         if prev and w["base"] != prev["commit"]:
             f.append(("X35", f"{node}#{attempt}", f"base {w['base'][:12]} is not attempt {attempt - 1}'s commit {prev['commit'][:12]}"))
+    # X35 scope_base (RF-62): attempt 1's base, reset by an upstream_field rebuild; integration rows measure from their base
+    for (kind, node, attempt), w in sorted(by_key.items(), key=lambda kv: (kv[0][0], kv[0][1] or "", kv[0][2])):
+        if kind == "integration":
+            want = w["base"]
+        else:
+            resets = [a for (n, a) in rebased if n == node and a <= attempt and ("node", node, a) in by_key]
+            first = by_key.get(("node", node, max(resets) if resets else 1))
+            if not first:
+                continue
+            want = first["base"]
+        if w["scope_base"] != want:
+            f.append(("X35", f"{node or 'integration'}#{attempt}", f"scope_base {w['scope_base'][:12]} is not {want[:12]}"))
     # X36 scope
     for r in rows:
         w, s = r.get("workspace"), r["subject"]

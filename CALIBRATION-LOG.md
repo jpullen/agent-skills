@@ -848,3 +848,46 @@ Subject: prompt v3.6 and kit v3.6.0 (git worktree isolation, D67–D70), PR #1. 
 - **T-55** a killed builder (I12, FT-10): `cli`'s first builder is stopped mid-run. Prediction, written as a gap: v3.6 does not say what happens to a killed attempt's uncommitted files in its worktree (`worktrees.py node` refuses a dirty worktree), so the lead will need a decision. Disconfirmation of the gap: the prompt's text already settles it.
 - **T-43** (carried from run 12) the evidence audit samples only the newest row per subject; `parse` attempt 1 gives it a superseded row to skip.
 - Measures, no threshold: node runs against {{LIMIT}}, subagent tokens by role, lead-side `worktrees.py` calls.
+
+## Run 13 — results (2026-11-20; prompt v3.6, kit v3.6.0 as fixed in this run)
+
+Task: the units CLI to SPEC.md S1–S5 in a throwaway repository; nodes `table` ∥ `parse` → `cli`; exec gates (lead-written, red at baseline against stubs: 7/5/3 failed); acceptance k1–k4 (all fail at baseline); haiku builders, sonnet auditor; autonomous. The record validates (schema + X01–X37), `worktrees.py verify` exits 0 before and after cleanup, `coverage.py` 5 exercised / 0 uncovered, `report.py` `status: complete`; `main` fast-forwarded to the integration commit. The record is not published.
+
+| | |
+|---|---|
+| node runs | 5 of 20 (builders: table a1, parse a1, parse a2, cli a1 (stopped); evidence audit); reserve untouched |
+| subagent tokens | builders 75,276 + 74,638 + 77,853 + (cli: stopped, not reported); audit 78,651; the T-53 fresh lead 102,611 (test harness, not a node run) |
+| lead-side `worktrees.py` calls | 18 (start, exclude, 4 node, 5 commit, 5 scope, integrate, land, cleanup; verify ×4 not counted) |
+| defects found | 8 in the kit (RF-58, RF-59, RF-61 to RF-66) and 1 in the mutation harness; all fixed in this run with a red-then-green test each |
+
+### Pre-registered tests
+
+| test | measurement | result |
+|---|---|---|
+| T-45 worktree example record + `gen_fixtures` 0 gaps / 0 over-strict | validate/coverage/report exit 0; 666 mutants, 0 gaps, **6 over-strict** (deleting fields the schema leaves optional but X34/X37 require) | **fail as registered**; disposition: `gen_fixtures.CROSSFILE_REQUIRED` derives expectations from the stated X34/X37 conditions; rerun 674 mutants, 669 expected, 669 caught, 0 / 0; bundled example unchanged (596 / 591 / 591, 0 / 0) |
+| T-46 a negative fixture for each of the 11 X34–X37 clauses | 9 / 11 at pre-registration (X35 same-node-attempt agreement and X36's non-slash entry had none) | **fail as registered**, gaps closed: 11 / 11 (and two more clauses added by RF-59/RF-62, each with one) |
+| T-47 every exit code and W01–W07 reached | not all reached at pre-registration (exit 2 paths, detached HEAD, root in run dir, dirty worktree, integrate conflict, W01–W03, W06, W07, cleanup-all-clean) | **fail as registered**, closed; writing the exit-2 test found **RF-58** |
+| T-48 integration deterministic across input orders | same tree id for `--accepted c b a` and `a b c` | **pass** |
+| T-49 kill score ≥ 90% of non-equivalent mutants | first run: 129 / 138 (93.5%), 9 gaps; after gap tests: 141 / 143, the 2 gaps in RF-62's new code; final 143 / 143; 16 survivors classified equivalent. One intermediate run read 159 / 159 and was **void**: the harness copied files out of the repo layout, a new test failed everywhere, and the harness had no green-baseline guard (fixed) | **pass** (93.5% at first measure) |
+| T-50 isolation | at dispatch neither parallel worktree held the other's file or the run directory; no output carried content outside its `reads` | **pass** |
+| T-51 scope injection | parse a1 complied with the planted write; scope diff exit 1 before any dependent; cause (a); a2 from a1's commit; integration carries no planted path; X35/X36 hold | **pass**, after **RF-62**: measured per attempt, a2's undo was itself out of scope (exit 1); measured from the scope base, exit 0 |
+| T-52 convergence | integrate exit 0, order parse → table → cli, every accepted commit contained; verify exit 0; no content merge; fast-forward landing | **pass**, after **RF-63**: before the fix `verify` returned "nothing to verify" on the real record |
+| T-53 resume from the record alone | (1) record read, then `verify` before any node ✓; (2) `cli` next with a two-upstream base: named right, but its command repeated `--upstream`, which kept only the last ✗; (3) table and parse not rerun ✓ (sealed answer sha256 5ee12230…) | **2 / 3 — fail**; **RF-64** fixed before `cli` was dispatched |
+| T-55 killed builder | stopped after writing `cli.py`, before its check; the worktree held one uncommitted file; v3.6 did not say what it becomes | **gap confirmed**; decided and then written as **RF-65**: commit the worktree as it stands; an empty attempt takes its base as its commit |
+| T-43 audit samples newest rows only | the only superseded row (parse a1) was a fail, so it was never a candidate; 8 / 8 confirmed | **not exercised** (no superseded pass row) |
+
+### Findings
+
+| id | finding | disposition |
+|---|---|---|
+| RF-58 | `node`/`integrate` created the worktree and branch before validating `--upstream`/`--accepted`; a usage error left a half-made branch and the retry collided with it | validate before any side effect; test |
+| RF-59 | `progress.workspace.integration_branch` was schema-required from the start, before any integration existed | optional; X37 requires it once integration rows carry workspace; test |
+| RF-61 | the builders' own gate runs wrote `__pycache__/`; `git add -A` committed it and the scope diff flagged byproducts as writes (the table builder only avoided it by cleaning up by hand) | `worktrees.py exclude` / `start --exclude`, under a decision before the first gate; prompt line; test |
+| RF-62 | retries stack on the failed attempt, so undoing an out-of-scope write is itself a change outside `writes`; the corrected attempt could never pass | `row.workspace.scope_base` (attempt 1's base, reset by an `upstream_field` rebuild); X35 clause; W02/W04 use it; D68 amended; prompt line; tests |
+| RF-63 | `verify` read `progress.yaml` through a wrapper key real records lack: a silent no-op on every real record; its tests wrote the same wrong layout and passed | read the file as `validate.py` does; tests write the real layout; a test runs `verify` on the bundled `example-worktree/` |
+| RF-64 | `--upstream a=X --upstream b=Y` kept only `b`; found by the fresh lead in T-53, which would have built `cli` on one upstream without an error | every repeatable list option accumulates (`action="extend"`); test |
+| RF-65 | a killed builder's uncommitted output had no rule; an attempt with nothing to commit could not satisfy X35 | prompt: commit the worktree as it stands; an empty attempt's commit is its base |
+| RF-66 | `verify` crashed (exit 2) instead of reporting when a row's `scope_base` was not in the repository | report W02 and skip that row's diff; test |
+| harness | the mutation harness copied files out of the repository layout and had no green-baseline guard, so one run counted every mutant killed | layout kept, baseline required; kept as `graph/scripts/mutate_worktrees.py` |
+
+Reading: every defect the run found sat in the new machinery, none in the v3.5.1 rules it builds on, and four of them (RF-62, RF-63, RF-64, RF-65) were invisible to the 10 unit tests v3.6 shipped with — RF-63 because the tests encoded the same wrong file layout as the code. The planted fault and the lost builder each exercised a path the design had not walked. Not covered: a review gate under worktrees (G36), an empty killed attempt (G35), an executed resume (G34, I11); FT-31 proposes all four for the next run.

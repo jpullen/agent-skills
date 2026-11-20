@@ -1,20 +1,21 @@
 """X34-X37 (v3.6, D67-D70): worktree isolation as the record states it. Run: python -m pytest -q test_workspace_rules.py"""
 import copy
+import hashlib
 
 import pytest
 
 from test_v2_rules import load, run
 
-B0, G1, G1B, G3B, G3, IN = ("0" * 39 + d for d in "123456")
+B0, G1, G1B, G3B, G3, IN = (hashlib.sha1(n.encode()).hexdigest() for n in ("base", "g1-a1", "g1-a1-alt", "g3-base", "g3-a1", "integration-a1"))
 SLUG = "2026-11-20-demo"
 
 
 def worktree_record():
     r = load()
     rows = r["checks"]["rows"]
-    rows[0]["workspace"] = {"branch": f"graph/{SLUG}/g1/a1", "base": B0, "commit": G1, "changed": ["code/checkrows.py"]}
-    rows[1]["workspace"] = {"branch": f"graph/{SLUG}/g3/a1", "base": G3B, "commit": G3, "changed": ["README.md"]}
-    integ = {"branch": f"graph/{SLUG}/integration/a1", "base": B0, "commit": IN, "changed": ["README.md", "code/checkrows.py"]}
+    rows[0]["workspace"] = {"branch": f"graph/{SLUG}/g1/a1", "base": B0, "scope_base": B0, "commit": G1, "changed": ["code/checkrows.py"]}
+    rows[1]["workspace"] = {"branch": f"graph/{SLUG}/g3/a1", "base": G3B, "scope_base": G3B, "commit": G3, "changed": ["README.md"]}
+    integ = {"branch": f"graph/{SLUG}/integration/a1", "base": B0, "scope_base": B0, "commit": IN, "changed": ["README.md", "code/checkrows.py"]}
     rows[2]["workspace"] = copy.deepcopy(integ)
     rows[3]["workspace"] = copy.deepcopy(integ)
     r["progress"]["workspace"] = {"kind": "worktree", "repo": "/work/repo", "base": B0, "person_branch": "main",
@@ -82,7 +83,8 @@ def retry(r, cause):
     second = copy.deepcopy(rows[0])
     rows[0]["verdict"] = "fail"; rows[0]["evidence"]["actual_exit"] = 1
     second["attempt"] = 2
-    second["workspace"] = {"branch": f"graph/{SLUG}/g1/a2", "base": G1B, "commit": G1B.replace("2", "7"), "changed": ["code/checkrows.py"]}
+    second["workspace"] = {"branch": f"graph/{SLUG}/g1/a2", "base": G1B, "scope_base": G1B if cause == "upstream_field" else B0,
+                           "commit": hashlib.sha1(b"g1-a2").hexdigest(), "changed": ["code/checkrows.py"]}
     rows.insert(1, second)
     r["progress"]["hypotheses"] = [{"node": "g1", "before_attempt": 2, "cause": cause, "disconfirmation": "the retry passes"}]
     return r
@@ -127,3 +129,57 @@ def test_x37_integration_branch_and_landing(tmp_path):
     assert "X37" in rules(r, tmp_path)[1]
     r = worktree_record(); r["progress"]["workspace"]["landed"] = {"kind": "not_landed", "reason": "main moved since the run base"}
     assert rules(r, tmp_path)[0] == 0
+
+
+# T-46 (run 13): clauses that had no negative fixture at pre-registration ----------
+
+def test_x34_workspace_with_no_progress_workspace(tmp_path):
+    r = worktree_record(); del r["progress"]["workspace"]
+    assert "X34" in rules(r, tmp_path)[1]
+
+
+def test_x35_rows_of_one_node_attempt_must_agree(tmp_path):
+    r = worktree_record()
+    g1 = r["graph"]["nodes"][0]
+    g1["checks"].append({"id": "g1-lint", "type": "exec", "content": "ruff code/checkrows.py", "fails_when": "any finding", "exec_available": "yes"})
+    twin = copy.deepcopy(r["checks"]["rows"][0]); twin["subject"]["check"] = "g1-lint"
+    r["checks"]["rows"].insert(1, twin)
+    assert rules(r, tmp_path)[0] == 0
+    twin["workspace"]["commit"] = G1B
+    assert "X35" in rules(r, tmp_path)[1]
+
+
+def test_x36_prefix_needs_a_trailing_slash(tmp_path):
+    r = worktree_record()
+    r["graph"]["nodes"][0]["writes"] = ["code"]
+    r["checks"]["rows"][0]["workspace"]["changed"] = ["code/checkrows.py"]
+    assert "X36" in rules(r, tmp_path)[1]
+
+
+def test_x37_delivery_without_integration_rows_needs_landing(tmp_path):
+    r = worktree_record()
+    r["checks"]["rows"] = r["checks"]["rows"][:2]
+    del r["progress"]["workspace"]["landed"]
+    assert "X37" in rules(r, tmp_path)[1]
+
+
+def test_rf59_integration_branch_absent_until_integration(tmp_path):
+    r = worktree_record()
+    r["checks"]["rows"] = r["checks"]["rows"][:2]
+    ws = r["progress"]["workspace"]; del ws["integration_branch"]; del ws["landed"]
+    r["progress"]["next_action"] = {"kind": "node", "node": "g3"}
+    code, found, _ = rules(r, tmp_path)
+    assert "SCHEMA" not in found and "X37" not in found
+    r = worktree_record(); del r["progress"]["workspace"]["integration_branch"]
+    assert "X37" in rules(r, tmp_path)[1]
+
+
+def test_rf62_scope_base_is_attempt_one_base_unless_rebuilt(tmp_path):
+    r = retry(worktree_record(), "builder_error"); r["checks"]["rows"][1]["workspace"]["base"] = G1
+    assert "X35" not in rules(r, tmp_path)[1]
+    r["checks"]["rows"][1]["workspace"]["scope_base"] = G1  # measured per attempt: the RF-62 defect
+    assert "X35" in rules(r, tmp_path)[1]
+    r = retry(worktree_record(), "upstream_field"); r["checks"]["rows"][1]["workspace"]["scope_base"] = B0
+    assert "X35" in rules(r, tmp_path)[1]
+    r = worktree_record(); r["checks"]["rows"][3]["workspace"]["scope_base"] = G1
+    assert "X35" in rules(r, tmp_path)[1]

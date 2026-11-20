@@ -1,4 +1,4 @@
-# Test coverage matrix (kit v3.6.0, 2026-11-20)
+# Test coverage matrix (kit v3.6.0, 2026-11-20, after run 13)
 
 Source of truth for what the calibration apparatus has exercised. An interactive version (not published) also exists, with an evidence grid, return-path transition coverage, and Pareto and set-cover views. Runs 1–6 predate the v3 record and are not counted. Keys (Gnn, Inn) name conditions; the set cover targets those whose status is `never` or `partial`, and a condition marked `covered` (G06, for one) is not open.
 
@@ -83,9 +83,11 @@ Source of truth for what the calibration apparatus has exercised. An interactive
 |  | Route | lead | this assistant as lead | 7–12 |  |  | covered |  |
 | G31 | Route | lead | Codex as lead | Codex |  |  | partial | adapter trials ran on v3.4, not the current prompt |
 | G24 | Route | lead | a human as lead |  |  |  | never |  |
-| G32 | Workspace | worktree | parallel nodes, fan-in base, integration branch and landing in a real run |  | test_worktrees (10) | T-45 | partial | rule exists since v3.6; throwaway-repository tests only |
-| G33 | Workspace | worktree | a write outside `writes` caught by the scope diff in a real run |  | X36, test_worktrees |  | partial | planted in tests only |
-| G34 | Workspace | worktree | resumption verified against git (`worktrees.py verify`) after a lost session |  |  |  | never |  |
+| G32 | Workspace | worktree | parallel nodes, fan-in base, integration branch and landing in a real run | 13 | test_worktrees (28) | T-50, T-52 | covered | three nodes, two parallel; fast-forward landing |
+| G33 | Workspace | worktree | a write outside `writes` caught by the scope diff in a real run | 13 | X36, test_worktrees | T-51 | covered | planted (I03); found RF-61 and RF-62 |
+| G34 | Workspace | worktree | resumption verified against git (`worktrees.py verify`) after a lost session | 13 |  | T-53 | partial | a fresh lead planned the resume from the record (2/3) but did not execute it; found RF-64 |
+| G35 | Workspace | worktree | a killed attempt that changed nothing (base as commit, RF-65) in a real run |  |  |  | never | rule added after run 13; run 13's killed builder had written its file |
+| G36 | Workspace | worktree | a review gate (mutant, fresh reviewer) on a worktree attempt |  |  |  | never | run 13 used exec gates only |
 | G28 | Route | comparison | graph vs direct, pre-registered pair | 12 |  | P1–P4 | partial | one pair; T-44 asks for a second on a different task |
 |  | Incidents (occurred) | harness | Write tool refused to a subagent | 12 × |  |  | covered | unplanned; resumed via message, heredoc save |
 |  | Incidents (occurred) | harness | container restart mid-run (subagents lost) | 12 × |  |  | covered | unplanned, twice; the record replayed from next_action |
@@ -103,7 +105,7 @@ Source of truth for what the calibration apparatus has exercised. An interactive
 |  | Measures | recorded per run | first-attempt reviewer pass rate | 9–12 |  | T-28 | covered |  |
 | G27 | Measures | recorded per run | reviewer repeatability (same brief, N runs) |  |  |  | never | a statistic the kit has never collected |
 
-Totals: 96 conditions — 63 covered, 15 partial, 18 never. Open conditions and injections not yet run (deduplicated): 47. (v3.6 added the X34–X37 row, covered, and G32–G34, open.)
+Totals: 98 conditions — 65 covered, 14 partial, 19 never. Open conditions and injections not yet run (deduplicated): 45. (v3.6 added the X34–X37 row and G32–G36; run 13 covered G32, G33, I03 and I12 and moved G34 and I11 to partial.)
 
 ## 2. Return-path transition coverage
 
@@ -120,7 +122,7 @@ Reading: every edge that accepts work has been walked; the half of the machine t
 |---|---|---|---|---|---|
 | I01 | Builder returns nothing or an error | Stub brief: return the single word error; or stop the agent mid-run | Layer 6: one attempt used; hypothesis entry before the retry | yes, deterministic | never |
 | I02 | Builder returns partial output | Brief: write only the first section and stop | Same path; the gate must fail on the saved version, not the self-report | yes | unplanned in 12 (restart) |
-| I03 | Builder writes outside its scope | Brief instructing a write to a sequestered path | D55 exclusivity; the lead's pre-gate listing diff catches it | yes | never |
+| I03 | Builder writes outside its scope | Brief instructing a write to a sequestered path | D55 exclusivity; the lead's pre-gate listing diff catches it | yes | covered (run 13: scope diff exit 1 before any dependent ran) |
 | I04 | Builder reports gates passed without running them | Brief that forbids running the gate but asks for the standard return | The lead reruns every exec gate itself (rows carry na_exec / lead reran) | yes — the common real failure | never |
 | I05 | Reviewer returns a proposed fix | Brief asking for 'and suggest the fix' | R45 / layer 5: the return is void; rerun | yes | never |
 | I06 | Reviewer passes the mutant | Plant a mutant the brief does not point at; or a weaker tier | Review void; brief tightened; second void → escalated | yes | unplanned in 12 (tests attempt 3) |
@@ -128,8 +130,8 @@ Reading: every edge that accepts work has been walked; the half of the machine t
 | I08 | Builder and reviewer share a context | Run both in one context (same_context_degraded) | Isolation kind recorded; the run is partial | yes, by construction | never |
 | I09 | LIMIT exhausted mid-graph | Set LIMIT below the graph's minimum runs (e.g. 5 for 4 nodes) | Exit at LIMIT minus the reserve for ordinary work; audits may pass LIMIT (X30); partial delivery names every node's state | yes, deterministic — the unit is node runs | never |
 | I10 | Reserve consumed by a non-audit run | Force a correction when consumed = LIMIT − ceil(LIMIT/10) | X30 rejects; the lead stops or raises with an RF-44 decision | yes | never |
-| I11 | Lead loses context (compaction) | Hand the record directory alone to a fresh lead with 'resume' | D55 same-run resumption: everything needed is in the record | yes — the central claim | unplanned in 12 (this session compacted); not measured |
-| I12 | Container restart / subagent killed | Stop a background builder; delete any partial output | The record is a write-ahead log: nothing dispatched is lost that was not recorded; resume from next_action | yes | unplanned in 12 ×2 |
+| I11 | Lead loses context (compaction) | Hand the record directory alone to a fresh lead with 'resume' | D55 same-run resumption: everything needed is in the record | yes — the central claim | partial (run 13, T-53: plan-only resume, 2/3 — the plan was right, its command would have dropped an upstream, RF-64) |
+| I12 | Container restart / subagent killed | Stop a background builder; delete any partial output | The record is a write-ahead log: nothing dispatched is lost that was not recorded; resume from next_action | yes | covered (run 13, T-55: builder stopped after writing; committed as it stood and gated; found RF-65) |
 | I13 | Tool unavailable (no Write, no fresh subagent, no exec) | Remove the tool from the brief's allowance; exec_available: no | unavailable.tried records the attempt; the gate downgrades or the run is partial | yes | partial (review-only checks in 11, 12) |
 | G04 | A source is defective (cause d) | Plant a contradiction in a frozen source | Open issue source_defect; blocks until a person decides | yes | never |
 | I15 | Subagent token or context exhaustion mid-write | Not cappable from here; approximate with an oversized demand or a timed stop | Treated as partial output | partially — the state reproduces, the cause does not | never |
@@ -171,7 +173,8 @@ Value 1–5 (5 = tests a claim the design rests on); cost 1–5 (1 = one call, 3
 | — | 8 | FT-08 | Independent re-triage: a second lead re-grades one record's observations from the record alone | the silent-lead-error class (the C12 triage) | 4 | 3 | 5 | own run | I17 |
 | — | 16 | FT-16 | Opus reviewer vs sonnet on one mutant set | whether tier buys reviewer sensitivity | 3 | 3 | 3 | own run | none open (G06 is covered; this measures what the opus tier adds, not whether it was used) |
 | — | 22 | FT-23 | Partial-output builder → attempt counted, hypothesis recorded | layer 6 bookkeeping | 2 | 1 | 3 | heuristic skip | I01, I02 |
-| new | new | FT-30 | A worktree run with two parallel nodes and a join, one planted out-of-scope write, then a resume after a killed session (T-45) | whether D67–D70 hold in a real run: isolation, scope diff, convergence, verify on resume | 4 | 3 | 5 | next run | G32, G33, G34 |
+| done | — | FT-30 | A worktree run with two parallel nodes and a join, one planted out-of-scope write, then a resume after a killed session | whether D67–D70 hold in a real run: isolation, scope diff, convergence, verify on resume | 4 | 3 | 5 | run 13 | G32, G33 (closed); G34 (partial) |
+| new | new | FT-31 | An executed resume: a fresh lead continues run 13's state from the record to delivery, plus a review-gated worktree node and a killed builder that wrote nothing | G34 and I11 end to end; G35, G36 | 4 | 3 | 5 | next run | G34, G35, G36, I11 |
 
 Open conditions no test closes: I15 (Subagent token or context exhaustion mid-write). Tokens and time per run are a recording practice for every run rather than a test.
 

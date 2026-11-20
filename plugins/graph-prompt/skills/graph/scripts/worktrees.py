@@ -4,16 +4,23 @@
 Every step here is deterministic, so it runs as a program, never as a subagent
 (layer_3). The lead calls it; builders never do.
 
-  start     REPO --slug S --run-dir D [--root DIR] [--scope P ...]
+  start     REPO --slug S --run-dir D [--root DIR] [--scope P ...] [--exclude PATTERN ...]
             record the run base (HEAD), check the scope paths are clean, keep the
-            run directory out of every worktree, create the baseline worktree.
+            run directory (and any --exclude pattern) out of every worktree, create
+            the baseline worktree.
+  exclude   REPO PATTERN ...
+            add gitignore patterns for byproducts the gates create (caches, logs) to
+            the repository's local exclude file, shared by every worktree (RF-61).
   node      REPO --slug S --node N --attempt K --from SHA [--upstream U=SHA ...] [--graph G]
             create (or switch) the node's worktree onto branch graph/S/N/aK at SHA,
             then merge the upstream commits in topological order (ties by node id).
   commit    WORKTREE --message M
             stage everything in the worktree and commit it; one commit per attempt.
   scope     WORKTREE --base B --commit C (--writes P ... | --graph G --node N)
-            list the paths the attempt changed and those outside the node's writes.
+            list the paths changed between B and C and those outside the node's
+            writes. B is the node's scope base: attempt 1's base, or the base of an
+            attempt rebuilt on re-accepted upstreams (RF-62), so a retry that undoes
+            an earlier attempt's out-of-scope write is not itself out of scope.
   integrate REPO --slug S --attempt K --base B0 --graph G --accepted N=SHA ...
             build graph/S/integration/aK from B0 by merging every accepted node's
             newest commit in topological order; confirm each is an ancestor.
@@ -112,6 +119,22 @@ def default_root(repo, slug):
     return os.path.join(common, "graph-worktrees", slug)
 
 
+def add_excludes(repo, patterns):
+    exclude = os.path.join(out(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"), "info", "exclude")
+    os.makedirs(os.path.dirname(exclude), exist_ok=True)
+    existing = open(exclude, encoding="utf-8").read().splitlines() if os.path.exists(exclude) else []
+    added = [p for p in patterns if p not in existing]
+    with open(exclude, "a", encoding="utf-8") as fh:
+        for p in added:
+            fh.write(p + "\n")
+    return exclude, added
+
+
+def cmd_exclude(a):
+    path, added = add_excludes(a.repo, a.patterns)
+    return 0, {"exclude_file": path, "added": added}
+
+
 def cmd_start(a):
     top = out(a.repo, "rev-parse", "--show-toplevel")
     branch = git(top, "symbolic-ref", "--quiet", "--short", "HEAD", check=False)
@@ -128,10 +151,8 @@ def cmd_start(a):
         if out(top, "ls-files", "--", rel):
             raise Fail(3, {"error": "the run directory is tracked; every worktree would carry the record and its gate programs", "run_dir": rel})
         if git(top, "check-ignore", "-q", rel + "/", check=False).returncode != 0:
-            exclude = os.path.join(out(top, "rev-parse", "--path-format=absolute", "--git-common-dir"), "info", "exclude")
-            os.makedirs(os.path.dirname(exclude), exist_ok=True)
-            with open(exclude, "a", encoding="utf-8") as fh:
-                fh.write(f"/{rel.replace(os.sep, '/')}/\n")
+            add_excludes(top, [f"/{rel.replace(os.sep, '/')}/"])
+    excluded = add_excludes(top, a.exclude)[1] if a.exclude else []
     root = os.path.abspath(a.root) if a.root else default_root(top, a.slug)
     if os.path.relpath(root, run_dir).split(os.sep)[0] != "..":
         raise Fail(3, {"error": "the worktree root is inside the run directory", "root": root})
@@ -140,13 +161,14 @@ def cmd_start(a):
     os.makedirs(os.path.dirname(root), exist_ok=True)
     git(top, "worktree", "add", "--detach", os.path.join(root, "baseline"), base)
     return 0, {"kind": "worktree", "repo": top, "base": base, "person_branch": branch.stdout.strip(),
-               "root": root, "baseline": os.path.join(root, "baseline")}
+               "root": root, "baseline": os.path.join(root, "baseline"), "excluded": excluded}
 
 
 def cmd_node(a):
     root = os.path.abspath(a.root) if a.root else default_root(a.repo, a.slug)
     wt = os.path.join(root, a.node)
     branch = f"graph/{a.slug}/{a.node}/a{a.attempt}"
+    upstream = ordered(parse_pairs(a.upstream), a.graph)  # validate before any side effect (RF-58)
     start = out(a.repo, "rev-parse", "--verify", a.from_ + "^{commit}")
     if os.path.isdir(wt):
         if out(wt, "status", "--porcelain"):
@@ -154,7 +176,7 @@ def cmd_node(a):
         git(wt, "switch", "-c", branch, start)
     else:
         git(a.repo, "worktree", "add", "-b", branch, wt, start)
-    merge_all(wt, ordered(parse_pairs(a.upstream), a.graph), f"graph({a.slug}): {a.node} a{a.attempt} base")
+    merge_all(wt, upstream, f"graph({a.slug}): {a.node} a{a.attempt} base")
     return 0, {"worktree": wt, "branch": branch, "base": out(wt, "rev-parse", "HEAD")}
 
 
@@ -189,13 +211,13 @@ def cmd_integrate(a):
     root = os.path.abspath(a.root) if a.root else default_root(a.repo, a.slug)
     wt = os.path.join(root, "integration")
     branch = f"graph/{a.slug}/integration/a{a.attempt}"
+    accepted = ordered(parse_pairs(a.accepted), a.graph)  # validate before any side effect (RF-58)
     if os.path.isdir(wt):
         if out(wt, "status", "--porcelain"):
             raise Fail(3, {"error": "the integration worktree has uncommitted changes", "worktree": wt})
         git(wt, "switch", "-c", branch, a.base)
     else:
         git(a.repo, "worktree", "add", "-b", branch, wt, a.base)
-    accepted = ordered(parse_pairs(a.accepted), a.graph)
     merge_all(wt, accepted, f"graph({a.slug}): integration a{a.attempt}")
     head = out(wt, "rev-parse", "HEAD")
     missing = [n for n, sha in accepted if not is_ancestor(wt, sha, head)]
@@ -212,7 +234,7 @@ def cmd_verify(a):
         with open(p, encoding="utf-8") as fh:
             return yaml.safe_load(fh) or {}
     rows = y("checks").get("rows", [])
-    prog = y("progress").get("progress", {})
+    prog = y("progress")  # run-record files carry no top-level wrapper key (RF-63)
     ws = prog.get("workspace") or {}
     findings = []
     if ws.get("kind") != "worktree":
@@ -228,12 +250,15 @@ def cmd_verify(a):
         who = f"{s.get('node') or s.get('item') or s['kind']}#{r['attempt']}"
         if not exists(w["commit"]) or not exists(w["base"]):
             findings.append(f"W01 {who}: commit or base not in the repository"); continue
-        if not is_ancestor(repo, w["base"], w["commit"]):
-            findings.append(f"W02 {who}: base is not an ancestor of commit")
+        scope_base = w.get("scope_base", w["base"])
+        if not exists(scope_base):
+            findings.append(f"W02 {who}: scope_base is not in the repository"); continue  # RF-66: no diff against a missing commit
+        if not is_ancestor(repo, w["base"], w["commit"]) or not is_ancestor(repo, scope_base, w["commit"]):
+            findings.append(f"W02 {who}: base or scope_base is not an ancestor of commit")
         tip = git(repo, "rev-parse", "--verify", "--quiet", "refs/heads/" + w["branch"], check=False).stdout.strip()
         if tip != w["commit"]:
             findings.append(f"W03 {who}: branch {w['branch']} tip is {tip[:12] or 'missing'}, not the recorded commit")
-        diff = set(out(repo, "diff", "--name-only", w["base"], w["commit"]).splitlines())
+        diff = set(out(repo, "diff", "--name-only", scope_base, w["commit"]).splitlines())
         if diff != set(w["changed"]):
             findings.append(f"W04 {who}: changed list differs from git diff (git has {sorted(diff ^ set(w['changed']))} different)")
         if s["kind"] == "node" and r["verdict"] in ("pass", "dissent"):
@@ -295,15 +320,16 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="worktrees.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("start"); p.add_argument("repo"); p.add_argument("--slug", required=True)
-    p.add_argument("--run-dir", required=True); p.add_argument("--root"); p.add_argument("--scope", nargs="*")
+    p.add_argument("--run-dir", required=True); p.add_argument("--root"); p.add_argument("--scope", nargs="*", action="extend"); p.add_argument("--exclude", nargs="*", action="extend")
+    p = sub.add_parser("exclude"); p.add_argument("repo"); p.add_argument("patterns", nargs="+")
     p = sub.add_parser("node"); p.add_argument("repo"); p.add_argument("--slug", required=True); p.add_argument("--node", required=True)
     p.add_argument("--attempt", type=int, required=True); p.add_argument("--from", dest="from_", required=True)
-    p.add_argument("--upstream", nargs="*"); p.add_argument("--graph"); p.add_argument("--root")
+    p.add_argument("--upstream", nargs="*", action="extend"); p.add_argument("--graph"); p.add_argument("--root")
     p = sub.add_parser("commit"); p.add_argument("worktree"); p.add_argument("--message", required=True)
     p = sub.add_parser("scope"); p.add_argument("worktree"); p.add_argument("--base", required=True); p.add_argument("--commit", required=True)
-    p.add_argument("--writes", nargs="*"); p.add_argument("--graph"); p.add_argument("--node")
+    p.add_argument("--writes", nargs="*", action="extend"); p.add_argument("--graph"); p.add_argument("--node")
     p = sub.add_parser("integrate"); p.add_argument("repo"); p.add_argument("--slug", required=True); p.add_argument("--attempt", type=int, required=True)
-    p.add_argument("--base", required=True); p.add_argument("--graph"); p.add_argument("--accepted", nargs="+", required=True); p.add_argument("--root")
+    p.add_argument("--base", required=True); p.add_argument("--graph"); p.add_argument("--accepted", nargs="+", action="extend", required=True); p.add_argument("--root")
     p = sub.add_parser("verify"); p.add_argument("run_dir"); p.add_argument("--repo")
     p = sub.add_parser("land"); p.add_argument("repo"); p.add_argument("--commit", required=True); p.add_argument("--branch", required=True)
     p = sub.add_parser("cleanup"); p.add_argument("repo"); p.add_argument("--root", required=True)
