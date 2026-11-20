@@ -1,6 +1,6 @@
-# Graph Prompt v3.5.1 — Background
+# Graph Prompt v3.6 — Background
 
-Companion to the v3.5.1 graph prompt, the `<prompt>` block in this skill's SKILL.md (v2.8 had no background file of its own; its single change, format by reference to the schema, is D-S below). Decisions D34–D38 come from run 5 (the repository's `CALIBRATION-LOG.md`, RF-7 to RF-12); D39–D40 from run 6 (RF-13 to RF-17 and the third T-18 inventory); D41–D44 from run 7 (RF-19 to RF-24). The prompt carries obligations; this file carries why each exists, what would show it wrong, and the self-checks the Prompt Authoring Guide (v2.3.0) requires. Nothing here is read at runtime.
+Companion to the v3.6 graph prompt, the `<prompt>` block in this skill's SKILL.md (v2.8 had no background file of its own; its single change, format by reference to the schema, is D-S below). Decisions D34–D38 come from run 5 (the repository's `CALIBRATION-LOG.md`, RF-7 to RF-12); D39–D40 from run 6 (RF-13 to RF-17 and the third T-18 inventory); D41–D44 from run 7 (RF-19 to RF-24); D67–D70 (v3.6, worktree isolation) from a design request, not from a run. The prompt carries obligations; this file carries why each exists, what would show it wrong, and the self-checks the Prompt Authoring Guide (v2.3.0) requires. Nothing here is read at runtime.
 
 Mechanism-claim marker default for this file: `[Hypothesis: first ten runs of v3.1 on real tasks; disconfirmation = the stated threshold is crossed within the stated horizon]`. Claims with their own marker override the default.
 
@@ -309,6 +309,22 @@ Source: run 12's post-hoc review, where the lead left `G-mutant.txt` beside the 
 ### D66 — Exec evidence carries absolute paths (`layer_7`, RF-57, X33)
 Source: run 12's auditor had to prefix `cd /home/claude/run12 &&` to four cited commands. A citation that depends on the lead's working directory is a citation the auditor must guess at; X33 flags an exec evidence command whose first `cd` is relative.
 
+### D67 — Every node attempt runs on its own branch in its own worktree (`worktrees`, schema `progress.workspace`, `row.workspace`, X34, X35)
+Source: a design request, not a run finding — the first version whose additions trace to no calibration run. Before v3.6 parallel builders wrote into one checkout, isolated only by `writes` and the brief's may-not list; a builder could read a sibling's half-written output, and a superseded attempt's artifact was overwritten (the D64 alternative, "snapshot each attempt's artifact", left open). Now an attempt is a branch `graph/<run-slug>/<node>/a<attempt>` in that node's worktree: attempt 1 starts from the run base plus the newest accepted commits of its `reads`, attempt n from attempt n−1's commit, so the one-item rule (D16) and `filter_edits:` (D52, D57) are read off a diff instead of being rebuilt from two files by hand. The record (and with it the label draw, D65, and gate programs in `code/`, D47) is kept out of every worktree: `start` refuses a tracked {{RUN_DIR}} and the worktree root sits outside it. Every worktree step is deterministic and runs as `worktrees.py`, per layer_3. Where the deliverable is not in a git repository the run records `workspace.kind: directory` and behaves as v3.5.1.
+`[Hypothesis: across the next three runs with two or more parallel nodes, no builder's output contains content from a node outside its reads — disconfirmation: one does]`.
+
+### D68 — The scope diff is part of every node gate (`worktrees`, `layer_4`, X36)
+Source: the same request. `writes` was the only write boundary, and under `instruction_only` enforcement (every run so far) nothing checked it after the fact. With one commit per attempt, `git diff --name-only base commit` is the complete list of what the attempt changed, so a path outside `writes` is a cause (a) fail found by a program, whatever the gate's other verdicts. This detects; it does not prevent, so it does not change the `enforcement` kind. X36 checks the recorded list against `writes` on every pass or dissent row; `worktrees.py verify` checks the recorded list against git.
+`[Hypothesis: a write outside writes, when it occurs, is caught by the scope diff before any dependent reads it — disconfirmation: a dependent or the integration branch carries an out-of-scope path that no scope diff flagged]`.
+
+### D69 — Convergence is a topological merge from the run base; a conflict is a scope violation (`worktrees`, `layer_3`, `layer_7`, X37)
+Source: the same request. Fan-in bases and the integration branch merge accepted commits in topological order with ties by node id — a sort whose tie-break is written down, so the merge program is deterministic (layer_3's borderline). Because X14 keeps `writes` disjoint and D68 keeps each commit inside its `writes`, every such merge is structural; a textual conflict can only mean a write outside `writes`, so the merge is aborted and the scope diffs decide which side fails. A section two nodes must both change stays what layer_3 already calls it, a content merge node with its own gate; a git auto-merge of overlapping hunks is never accepted as a merge. A correction after integration rebuilds the integration branch from the run base (D23's "from its first item", applied to history). `worktrees.py verify` runs with the well-formedness audit: every accepted node's newest commit is contained in the newest integration commit, and every recorded base, commit, branch tip and changed list agrees with git.
+`[Hypothesis: no integration attempt in the next three worktree runs needs a content merge that the graph did not already contain as a node — disconfirmation: one does]`.
+
+### D70 — Delivery lands by fast-forward only; branches outlive worktrees (`worktrees`, `delivery`, `layer_4`, `handoff`)
+Source: the same request. Landing on the person's branch is the one step that touches their checkout, so it is a fast-forward to the newest integration commit or nothing: if their branch moved since the run base, the run records `not_landed` with the reason and delivers the integration branch by name, rather than merge into work it never gated. Interactive mode asks first. Cleanup removes only clean worktrees and never with `--force`; branches stay, since they are the evidence the record cites, and deleting one is a delete under layer_4. Resumption verifies the record against git before any node runs, so a resumed lead starts from commits, not from what a previous session left in a working tree.
+`[Hypothesis: in the next three worktree runs, every interactive landing is a fast-forward or an explicit not_landed, and no evidence-audit row is unfound because its worktree was removed — disconfirmation: either occurs]`.
+
 **Lead error recorded (run 12).** The spec reviewer observed "C12 lists four evidence kinds; the schema has five"; the lead triaged it as nothing because `not_run` cannot sit on a pass row. The post-hoc reviewer counted it as a defect. D56 already says a quotable contradiction with a cited source is a fail whoever notices it; the triage was wrong by the kit's own rule. No new rule — a note that D56 binds the lead's triage as much as the reviewer's verdict.
 
 **Measured cost of the route (run 12).** First graph-vs-direct pair, pre-registered: 16× subagent tokens, a partial record, 1 post-hoc defect vs 4 (results in the repository's `CALIBRATION-LOG.md`, Run 12 entry). The applicability guidance stands; its cost side is now a number, with the caveats listed there.
@@ -333,6 +349,7 @@ Source: run 12's auditor had to prefix `cd /home/claude/run12 &&` to four cited 
 | Authority rule | inputs | Halt-form; fixed. Changing it to warn-form reproduces v1.1 behavior |
 | Unchecked tolerance | layer_7 | The run may complete with unchecked rules; tighten by adding a maximum unchecked count to {{CHECKS}} |
 | Evidence-audit threshold (10%) | layer_7 | How many miscited rows fail the audit outright versus revert individually |
+| Workspace | worktrees | `worktree` when the deliverable and {{SCOPE}} lie in one git repository, else `directory`; run outside a repository to get v3.5.1 behaviour |
 | `dissent` eligibility | layer_6 | `review` gates only; widen to `inspect` only by editing, and expect more `partial` runs |
 
 ---
@@ -388,6 +405,7 @@ Each section names the Guide rule applied and confirms the prompt's text with it
 | Lead runs on the most capable tier | Applies in all contexts |
 | No agent grades an artifact it built | Applies in all contexts |
 | Deterministic steps run as programs, never subagents | Applies in all contexts |
+| Worktree steps run by `worktrees.py`; landing is fast-forward only | Applies in all contexts |
 | Irreversible steps ask (interactive) or block (autonomous) | Applies in all contexts |
 | Every gate opens on evidence, never confidence | Applies in all contexts |
 | Reviewer tier ≥ builder tier | Applies in all contexts |
@@ -420,6 +438,8 @@ Related symmetry: the Guide's diagnostic for compliance theater — *if I remove
 ---
 
 ## 6. Changelog
+
+**v3.6** — Git worktree isolation, from a design request rather than a run (no calibration run has used it yet). Every node attempt on its own branch in its own worktree, retries stacked on the previous attempt, the record kept out of every tree (D67). The scope diff is part of every node gate, X36 (D68). Fan-in and integration by topological merge from the run base; a conflict is a scope violation; `worktrees.py verify` in the well-formedness audit (D69). Fast-forward-only landing, branches kept, clean worktrees removed after delivery (D70). Schema `progress.workspace` and `row.workspace`; validator X34–X37; `scripts/worktrees.py` with 10 tests. 3,999 → 4,611 words (whole SKILL.md, `wc -w`; earlier entries used a count this log does not reconcile).
 
 **v3.5.1** — Run-12 findings (the first graph-vs-direct pair). Removal checks name their element set (D62). Parametrized cases are one test (D63). Evidence audit samples the newest row per subject (D64). Label draws under the record (D65). Absolute paths in exec evidence, X33 (D66). 3,793 → 3,933 words.
 

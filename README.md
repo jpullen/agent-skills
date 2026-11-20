@@ -16,7 +16,7 @@ To pick up a newer release, run `/plugin marketplace update jpullen`; Claude Cod
 
 | Skill | Plugin | How it is invoked | Purpose |
 |---|---|---|---|
-| `graph` | `graph-prompt` | You type `/graph-prompt:graph <task>`. It has `disable-model-invocation: true`, so Claude does not start it on its own. | Run a multi-step deliverable as a bounded-node graph with gated reviews and a validated run record that another session can resume. |
+| `graph` | `graph-prompt` | You type `/graph-prompt:graph <task>`. It has `disable-model-invocation: true`, so Claude does not start it on its own. | Run a multi-step deliverable as a bounded-node graph with gated reviews, one git worktree per node attempt, and a validated run record that another session can resume. |
 | `graph-record` | `graph-prompt` | Claude loads it when you ask to validate a run record, check whether it is complete, check rule coverage, or produce the delivery report, or when you point at a run directory holding `graph.yaml`, `checks.yaml` and `progress.yaml`. | Validate, report on, and check rule coverage of a graph-prompt run record, using `validate.py`, `coverage.py` and `report.py`. |
 | `prompt-authoring` | `prompt-authoring` | Claude loads it when you ask to write, edit, review or audit a CLAUDE.md, SKILL.md, system prompt, rule set, plan template or experiment contract. | Author or revise durable AI instructions to the Prompt Authoring Guide's format rules, or audit existing instructions against them. |
 | `pipeline-001` | `prompt-authoring` | You type `/prompt-authoring:pipeline-001`. It has `disable-model-invocation: true`. | Run a staged structured analysis (frame, route expertise, check prior art, analyze, synthesize, adversarial critique, refine, coherence review) on a substantive analytical or design problem. |
@@ -25,7 +25,9 @@ To pick up a newer release, run `/plugin marketplace update jpullen`; Claude Cod
 
 **Reviews are tested before they are trusted.** Each review gate gets two unlabeled variants in random order: the real artifact and a copy with one planted defect. The review counts only if it fails the planted copy and passes the real one; a surviving defect voids it ([`graph` SKILL.md](plugins/graph-prompt/skills/graph/SKILL.md)).
 
-**The run record is checked by code, not by reading.** A [JSON schema](plugins/graph-prompt/skills/graph/references/graph-record.schema.json), the cross-file rules in `validate.py`, `coverage.py` and `report.py` read the record. `gen_fixtures.py` generates mutated records to test the validator: on the bundled example it made 596, of which 591 were expected to be caught and all 591 were, with no gaps. The scripts' 370 tests pass ([scripts](plugins/graph-prompt/skills/graph-record/scripts/)).
+**The run record is checked by code, not by reading.** A [JSON schema](plugins/graph-prompt/skills/graph/references/graph-record.schema.json), the cross-file rules in `validate.py`, `coverage.py` and `report.py` read the record. `gen_fixtures.py` generates mutated records to test the validator: on the bundled example it made 596, of which 591 were expected to be caught and all 591 were, with no gaps. The scripts' 384 tests pass ([scripts](plugins/graph-prompt/skills/graph-record/scripts/)).
+
+**Parallel work is isolated in git worktrees and converges by merge.** When the deliverable lives in a git repository, every node attempt runs on its own branch in its own worktree, so parallel builders never see each other's half-finished output and every attempt, failed or accepted, stays a commit. Each node gate includes a scope diff that fails any change outside the node's declared `writes`. Dependent nodes start from a merge of their accepted upstream commits, the integration node runs on a branch that merges every accepted node in topological order from the run base, and delivery fast-forwards your branch to it or reports why it could not. A git conflict is treated as a write outside `writes`, never auto-resolved. The steps run as one program, [`worktrees.py`](plugins/graph-prompt/skills/graph/scripts/worktrees.py) (10 tests against throwaway repositories), and `worktrees.py verify` checks the run record against git. No calibration run has used worktree isolation yet.
 
 **Failures have named causes and a budget.** A retry records one of four causes (builder error, upstream field wrong, check wrong, source defect); a node fails on its third failed attempt; the last tenth of the run limit is reserved; a fresh-context evidence audit re-checks cited commands ([`graph` SKILL.md](plugins/graph-prompt/skills/graph/SKILL.md)).
 
@@ -41,7 +43,7 @@ A graph run writes its state to a directory of YAML files, by default `.graph/<d
 
 ## Requirements
 
-`python3` and `pyyaml` for the three record scripts; `jsonschema` as well for `validate.py` (see [the graph-record skill](plugins/graph-prompt/skills/graph-record/SKILL.md)). For example: `pip install pyyaml jsonschema`.
+`python3` and `pyyaml` for the three record scripts and `worktrees.py`, which also needs `git` 2.31 or later; `jsonschema` as well for `validate.py` (see [the graph-record skill](plugins/graph-prompt/skills/graph-record/SKILL.md)). For example: `pip install pyyaml jsonschema`.
 
 ## Repository layout
 

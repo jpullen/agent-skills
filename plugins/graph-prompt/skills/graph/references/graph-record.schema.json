@@ -1279,6 +1279,9 @@
               "$ref": "#/$defs/nonempty"
             }
           }
+        },
+        "workspace": {
+          "$ref": "#/$defs/row_workspace"
         }
       },
       "allOf": [
@@ -2210,6 +2213,153 @@
               }
             }
           ]
+        },
+        "workspace": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false,
+          "description": "v3.6 (D67): how node writes are isolated. worktree: every node attempt runs in its own git worktree and branch; directory: the v3.5.1 behaviour, with the reason worktrees were not used. Absent on records written before v3.6",
+          "properties": {
+            "kind": {
+              "enum": [
+                "worktree",
+                "directory"
+              ]
+            },
+            "repo": {
+              "$ref": "#/$defs/path",
+              "description": "absolute path of the main checkout"
+            },
+            "base": {
+              "$ref": "#/$defs/commit",
+              "description": "the commit HEAD named when the run started; baseline runs against it"
+            },
+            "person_branch": {
+              "$ref": "#/$defs/nonempty",
+              "description": "the branch HEAD named at run start, onto which delivery lands"
+            },
+            "root": {
+              "$ref": "#/$defs/path",
+              "description": "absolute directory holding the run's worktrees; outside {{RUN_DIR}}"
+            },
+            "integration_branch": {
+              "$ref": "#/$defs/nonempty",
+              "description": "the newest integration attempt's branch (X37)"
+            },
+            "landed": {
+              "type": "object",
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "fast_forward",
+                    "not_landed"
+                  ]
+                },
+                "commit": {
+                  "$ref": "#/$defs/commit"
+                },
+                "reason": {
+                  "$ref": "#/$defs/nonempty"
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "fast_forward"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "commit"
+                    ],
+                    "properties": {
+                      "reason": false
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "not_landed"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "reason"
+                    ],
+                    "properties": {
+                      "commit": false
+                    }
+                  }
+                }
+              ]
+            },
+            "removed": {
+              "type": "boolean",
+              "description": "true once the run's clean worktrees were removed after delivery; branches are kept"
+            },
+            "reason": {
+              "$ref": "#/$defs/nonempty",
+              "description": "directory only: why worktrees were not used"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "worktree"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "repo",
+                  "base",
+                  "person_branch",
+                  "root",
+                  "integration_branch"
+                ],
+                "properties": {
+                  "reason": false
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "directory"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "repo": false,
+                  "base": false,
+                  "person_branch": false,
+                  "root": false,
+                  "integration_branch": false,
+                  "landed": false,
+                  "removed": false
+                }
+              }
+            }
+          ]
         }
       }
     },
@@ -2813,6 +2963,44 @@
           }
         }
       }
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+      "description": "a full git object id (SHA-1, or SHA-256 in a sha256 repository)"
+    },
+    "row_workspace": {
+      "type": "object",
+      "required": [
+        "branch",
+        "base",
+        "commit",
+        "changed"
+      ],
+      "additionalProperties": false,
+      "description": "v3.6 (D67): the git commit the gate ran against. Present on every row that ran when progress.workspace.kind is worktree (X34); absent otherwise",
+      "properties": {
+        "branch": {
+          "$ref": "#/$defs/nonempty",
+          "description": "graph/<run-slug>/<node>/a<attempt> for a node row; graph/<run-slug>/integration/a<attempt> for an acceptance or integration row"
+        },
+        "base": {
+          "$ref": "#/$defs/commit",
+          "description": "the commit the attempt started from: the run base, the fan-in merge of the node's upstream commits, or the node's previous attempt (X35)"
+        },
+        "commit": {
+          "$ref": "#/$defs/commit",
+          "description": "the commit the lead made from the builder's (or merge program's) output; the gate ran on this tree"
+        },
+        "changed": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/path"
+          },
+          "description": "git diff --name-only base commit, repo-relative; on a pass or dissent node row every path lies inside the node's writes (X36)"
+        }
+      }
     }
   },
   "x-crossfile": [
@@ -2847,6 +3035,10 @@
     "X29 a framing unknown with disposition pending names an open_issues id that exists and is unresolved, and progress.next_action is blocked on that issue; once next_action moves on, the unknown must be asked (with answer) or assumed",
     "X30 when unit is node_runs, usage.reserve_runs holds at most ceil(limit/10) non-audit entries; a correction_return or re_gate names a node with a checks row at that attempt (attempt >= 2); an integration entry names an attempt at which an integration- or acceptance-subject row exists (the integration node's gate is the acceptance items); an audit entry names each audit at most once; consumed exceeds limit by at most the number of audit entries — the reserve is part of limit, audits are the only runs that may pass it",
     "X31 an accepted node's latest row for every check has a verdict other than fail, dissent or escalated (well-formedness, not completion: unresolved rows still make the run partial)",
-    "X32 every rules row whose concerns include deliverable is named in some acceptance row's exercises[] or in progress.unchecked_rules (with a reason), and no id is in both; an unchecked_rules id exists in rules"
+    "X32 every rules row whose concerns include deliverable is named in some acceptance row's exercises[] or in progress.unchecked_rules (with a reason), and no id is in both; an unchecked_rules id exists in rules",
+    "X34 when progress.workspace.kind is worktree, every node, acceptance or integration row whose evidence kind is not not_run carries workspace; when progress.workspace is absent or directory, no row carries workspace",
+    "X35 rows of one node at one attempt carry identical workspace; two nodes never share a branch; a node row at attempt n > 1 has workspace.base equal to that node's attempt n-1 commit, unless the hypotheses entry for that node and attempt has cause upstream_field (the base was rebuilt from re-accepted upstream commits); acceptance and integration rows at one attempt carry identical workspace",
+    "X36 on a node row with verdict pass or dissent, every workspace.changed path equals one of the node's writes or lies under a writes entry that ends in '/'",
+    "X37 acceptance and integration rows at the newest integration attempt carry workspace.branch equal to progress.workspace.integration_branch; when next_action.kind is delivery under worktree, progress.workspace.landed is present, and a fast_forward landed.commit equals that newest integration commit"
   ]
 }

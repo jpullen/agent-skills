@@ -1,6 +1,8 @@
 # Changelog — graph-prompt plugin
 
-Plugin version 3.5.3 (the version in `.claude-plugin/plugin.json`) carries prompt v3.5.1. The entries below are the prompt's version history, reproduced verbatim from section 6 (Changelog) of `skills/graph/references/graph-prompt-background-v3.5.1.md`, newest first. Each entry is one line of that section; the plugin's own version numbers are not separately logged there.
+Plugin version 3.6.0 (the version in `.claude-plugin/plugin.json`) carries prompt v3.6. The entries below are the prompt's version history, reproduced verbatim from section 6 (Changelog) of `skills/graph/references/graph-prompt-background-v3.6.md`, newest first. Each entry is one line of that section; the plugin's own version numbers are not separately logged there.
+
+**v3.6** — Git worktree isolation, from a design request rather than a run (no calibration run has used it yet). Every node attempt on its own branch in its own worktree, retries stacked on the previous attempt, the record kept out of every tree (D67). The scope diff is part of every node gate, X36 (D68). Fan-in and integration by topological merge from the run base; a conflict is a scope violation; `worktrees.py verify` in the well-formedness audit (D69). Fast-forward-only landing, branches kept, clean worktrees removed after delivery (D70). Schema `progress.workspace` and `row.workspace`; validator X34–X37; `scripts/worktrees.py` with 10 tests. 3,999 → 4,611 words (whole SKILL.md, `wc -w`; earlier entries used a count this log does not reconcile).
 
 **v3.5.1** — Run-12 findings (the first graph-vs-direct pair). Removal checks name their element set (D62). Parametrized cases are one test (D63). Evidence audit samples the newest row per subject (D64). Label draws under the record (D65). Absolute paths in exec evidence, X33 (D66). 3,793 → 3,933 words.
 

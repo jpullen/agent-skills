@@ -1,4 +1,4 @@
-# Test coverage matrix (kit v3.5.3, 2026-11-05)
+# Test coverage matrix (kit v3.6.0, 2026-11-20)
 
 Source of truth for what the calibration apparatus has exercised. An interactive version (not published) also exists, with an evidence grid, return-path transition coverage, and Pareto and set-cover views. Runs 1–6 predate the v3 record and are not counted. Keys (Gnn, Inn) name conditions; the set cover targets those whose status is `never` or `partial`, and a condition marked `covered` (G06, for one) is not open.
 
@@ -59,6 +59,7 @@ Source of truth for what the calibration apparatus has exercised. An interactive
 | G29 | Return paths | review check | a removal check that names its element set (D62) in a real run |  |  | T-42 | partial | rule exists since v3.5.1; no run yet |
 |  | Record / validator | schema | schema rules via generated mutants |  | gen_fixtures 596 mutants, 591 expected caught, 591 caught (current tree) |  | covered | 0 gaps, 0 over-strict; the 5 mutants not expected caught are deletions of optional fields; the 594-mutant figures in CALIBRATION-LOG.md are from earlier versions |
 |  | Record / validator | cross-file rules | X01–X33 positive path |  | 148 tests |  | covered |  |
+|  | Record / validator | cross-file rules | X34–X37 (worktree record) positive and negative |  | test_workspace_rules (14) |  | covered | validator only; no real record yet |
 | G16 | Record / validator | cross-file rules | a negative fixture for every X-rule |  | test_v2_rules (29) |  | partial | X03–X10 lean on the example record only |
 | G17 | Record / validator | cross-file rules | X-rule hit on a real record | 10, 11, 12 |  |  | partial | hits found while writing records, never by a planned negative |
 |  | Record / validator | reserve (D54) | no reserve runs | 11, 12 |  |  | covered |  |
@@ -82,6 +83,9 @@ Source of truth for what the calibration apparatus has exercised. An interactive
 |  | Route | lead | this assistant as lead | 7–12 |  |  | covered |  |
 | G31 | Route | lead | Codex as lead | Codex |  |  | partial | adapter trials ran on v3.4, not the current prompt |
 | G24 | Route | lead | a human as lead |  |  |  | never |  |
+| G32 | Workspace | worktree | parallel nodes, fan-in base, integration branch and landing in a real run |  | test_worktrees (10) | T-45 | partial | rule exists since v3.6; throwaway-repository tests only |
+| G33 | Workspace | worktree | a write outside `writes` caught by the scope diff in a real run |  | X36, test_worktrees |  | partial | planted in tests only |
+| G34 | Workspace | worktree | resumption verified against git (`worktrees.py verify`) after a lost session |  |  |  | never |  |
 | G28 | Route | comparison | graph vs direct, pre-registered pair | 12 |  | P1–P4 | partial | one pair; T-44 asks for a second on a different task |
 |  | Incidents (occurred) | harness | Write tool refused to a subagent | 12 × |  |  | covered | unplanned; resumed via message, heredoc save |
 |  | Incidents (occurred) | harness | container restart mid-run (subagents lost) | 12 × |  |  | covered | unplanned, twice; the record replayed from next_action |
@@ -99,7 +103,7 @@ Source of truth for what the calibration apparatus has exercised. An interactive
 |  | Measures | recorded per run | first-attempt reviewer pass rate | 9–12 |  | T-28 | covered |  |
 | G27 | Measures | recorded per run | reviewer repeatability (same brief, N runs) |  |  |  | never | a statistic the kit has never collected |
 
-Totals: 92 conditions — 62 covered, 13 partial, 17 never. Open conditions and injections not yet run (deduplicated): 44.
+Totals: 96 conditions — 63 covered, 15 partial, 18 never. Open conditions and injections not yet run (deduplicated): 47. (v3.6 added the X34–X37 row, covered, and G32–G34, open.)
 
 ## 2. Return-path transition coverage
 
@@ -167,6 +171,7 @@ Value 1–5 (5 = tests a claim the design rests on); cost 1–5 (1 = one call, 3
 | — | 8 | FT-08 | Independent re-triage: a second lead re-grades one record's observations from the record alone | the silent-lead-error class (the C12 triage) | 4 | 3 | 5 | own run | I17 |
 | — | 16 | FT-16 | Opus reviewer vs sonnet on one mutant set | whether tier buys reviewer sensitivity | 3 | 3 | 3 | own run | none open (G06 is covered; this measures what the opus tier adds, not whether it was used) |
 | — | 22 | FT-23 | Partial-output builder → attempt counted, hypothesis recorded | layer 6 bookkeeping | 2 | 1 | 3 | heuristic skip | I01, I02 |
+| new | new | FT-30 | A worktree run with two parallel nodes and a join, one planted out-of-scope write, then a resume after a killed session (T-45) | whether D67–D70 hold in a real run: isolation, scope diff, convergence, verify on resume | 4 | 3 | 5 | next run | G32, G33, G34 |
 
 Open conditions no test closes: I15 (Subagent token or context exhaustion mid-write). Tokens and time per run are a recording practice for every run rather than a test.
 
