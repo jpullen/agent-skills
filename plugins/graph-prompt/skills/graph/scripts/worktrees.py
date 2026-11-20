@@ -34,12 +34,14 @@ Every step here is deterministic, so it runs as a program, never as a subagent
   verify    RUN_DIR --repo REPO
             check every row's workspace against git: commits exist, base is an
             ancestor, branch tip and changed list agree, integration converges.
-  history   REPO --base B --commit C [--exec CMD]
+  history   REPO --base B --commit C [--exec CMD] [--forbid REGEX]
             list every commit a push of C would publish beyond B, with its author
             and changed paths. With --exec, check each commit out in a scratch
             worktree and run CMD there (shell; the tree path is appended); exit 1
             if CMD fails on any commit (RF-73: gates read the tree, a push
-            publishes the history).
+            publishes the history). With --forbid, a commit whose message or
+            author matches REGEX (case-insensitive) fails too (RF-79: a push
+            publishes those as well).
   land      REPO --commit C --branch PB [--squash --base B --message M [--author A]]
             fast-forward the person's branch to C; anything but a fast-forward is
             not landed. With --squash, land one new commit on B that carries C's
@@ -55,6 +57,7 @@ to commit; 5 not landed.
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -339,14 +342,21 @@ def cmd_history(a):
         git(a.repo, "worktree", "add", "--detach", scratch, a.base)
     rows, failed = [], []
     try:
+        forbid = re.compile(a.forbid, re.IGNORECASE) if a.forbid else None
+    except re.error as e:
+        raise Fail(2, {"error": f"--forbid is not a regular expression: {e}"})
+    try:
         for c in commits:
             row = {"commit": c, "author": out(a.repo, "log", "-1", "--format=%an <%ae>", c), "subject": out(a.repo, "log", "-1", "--format=%s", c),
                    "paths": out(a.repo, "diff-tree", "--no-commit-id", "--name-only", "-r", "-m", "--first-parent", c).splitlines()}
+            if forbid and forbid.search(out(a.repo, "log", "-1", "--format=%an <%ae>%n%cn <%ce>%n%B", c)):
+                row["forbidden"] = True
+                failed.append(c)
             if scratch:
                 git(scratch, "checkout", "-q", "--detach", c)
                 r = subprocess.run(f"{a.exec_} {scratch}", shell=True, capture_output=True, text=True, cwd=scratch)
                 row["exit"] = r.returncode
-                if r.returncode != 0:
+                if r.returncode != 0 and c not in failed:
                     failed.append(c)
             rows.append(row)
     finally:
@@ -405,7 +415,7 @@ def main(argv=None):
     p.add_argument("--attempt", type=int, required=True); p.add_argument("--from", dest="from_", required=True)
     p.add_argument("--upstream", nargs="*", action="extend"); p.add_argument("--graph"); p.add_argument("--root"); p.add_argument("--carry")
     p = sub.add_parser("commit"); p.add_argument("worktree"); p.add_argument("--message", required=True); p.add_argument("--author")
-    p = sub.add_parser("history"); p.add_argument("repo"); p.add_argument("--base", required=True); p.add_argument("--commit", required=True); p.add_argument("--exec", dest="exec_")
+    p = sub.add_parser("history"); p.add_argument("repo"); p.add_argument("--base", required=True); p.add_argument("--commit", required=True); p.add_argument("--exec", dest="exec_"); p.add_argument("--forbid")
     p = sub.add_parser("scope"); p.add_argument("worktree"); p.add_argument("--base", required=True); p.add_argument("--commit", required=True)
     p.add_argument("--writes", nargs="*", action="extend"); p.add_argument("--graph"); p.add_argument("--node")
     p = sub.add_parser("integrate"); p.add_argument("repo"); p.add_argument("--slug", required=True); p.add_argument("--attempt", type=int, required=True)

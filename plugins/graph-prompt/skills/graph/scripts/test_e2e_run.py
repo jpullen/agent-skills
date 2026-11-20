@@ -151,10 +151,12 @@ def test_history_gate_fails_and_delivery_is_squashed(tmp_path):
     assert "placeholder" not in sh(lead.repo, "git", "log", "-p", f"{lead.base}..main").stdout
 
 
-def test_reset_git_identity_blocks_the_commit(tmp_path):
-    """Run 14 (RF-74): a container restart reset the git identity; the commit gate refuses instead of mis-authoring."""
+def test_reset_git_identity_is_refused_then_restored(tmp_path):
+    """Run 14 (RF-74) and run 15 (RF-75): a container restart reset the git identity; the commit step refuses, the lead
+    restores the given author under a decision and commits again, and no commit carries the wrong author."""
     lead = Lead(tmp_path)
     sh(lead.repo, "git", "config", "user.name", "Claude")
-    with pytest.raises(AssertionError, match="git identity is not the run's author"):
-        lead.attempt("table", b.table)
-    assert sh(lead.repo, "git", "rev-list", "--all", "--count").stdout.strip() == "1"   # nothing was committed
+    assert lead.attempt("table", b.table)[0] == "pass"
+    assert any("commit refused: git identity was Claude" in d["reason"] for d in lead.progress["decisions"])
+    assert sh(lead.repo, "git", "log", "--format=%an", "-1", lead.accepted["table"]).stdout.strip() == "e2e lead"
+    audits_hold(lead)                                                    # W10 finds no wrong author

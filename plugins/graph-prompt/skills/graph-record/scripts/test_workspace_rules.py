@@ -194,3 +194,22 @@ def test_run14_squashed_landing_and_author(tmp_path):
     assert "SCHEMA" in rules(r, tmp_path)[1]
     r = load(); r["progress"]["workspace"] = {"kind": "directory", "reason": "no git", "author": "A <a@example.invalid>"}
     assert "SCHEMA" in rules(r, tmp_path)[1]
+
+
+def test_rf77_record_validates_at_audit_one_before_landing(tmp_path):
+    """Landing follows both audits; audit 1 is validate.py itself, run with next_action already at delivery."""
+    r = worktree_record()
+    del r["progress"]["workspace"]["landed"]
+    r["progress"]["audits"]["evidence"] = {"isolation": {"kind": "not_run", "reason": "audit 1 first"}, "rows": 0, "miscited": 0, "unfound": 0, "verdict": "not_run", "notes": []}
+    assert "X37" not in rules(r, tmp_path)[1]
+    r = worktree_record(); del r["progress"]["workspace"]["landed"]          # evidence audit recorded: landing is now required
+    assert "X37" in rules(r, tmp_path)[1]
+
+
+def test_rf76_framing_inputs(tmp_path):
+    r = load()
+    r["framing"]["inputs"] = {"task": "build the validators", "output": "code/ and README.md", "sources": ["spec.md"], "scope": ["code/", "README.md"],
+                              "mode": "interactive", "models": ["haiku", "sonnet", "opus"], "priorities": [], "author": "None"}
+    assert rules(r, tmp_path)[0] == 0
+    del r["framing"]["inputs"]["sources"]
+    assert "SCHEMA" in rules(r, tmp_path)[1]

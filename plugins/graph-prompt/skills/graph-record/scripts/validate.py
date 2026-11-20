@@ -519,19 +519,22 @@ def workspace_findings(rec):
         for p in w["changed"]:
             if not any(p == x or (x.endswith("/") and p.startswith(x)) for x in writes):
                 f.append(("X36", _subj(r), f"changed {p} is outside writes"))
-    # X37 convergence
+    # X37 convergence. Landing follows both audits (RF-77): the entry is required once the evidence audit is recorded,
+    # so the record can validate at audit 1 with next_action already at delivery.
+    delivering = (prog.get("next_action", {}).get("kind") == "delivery"
+                  and prog.get("audits", {}).get("evidence", {}).get("verdict", "not_run") != "not_run")
     integ = [k for k in by_key if k[0] == "integration"]
     if integ:
         newest = by_key[max(integ, key=lambda k: k[2])]
         if newest["branch"] != ws.get("integration_branch"):
             f.append(("X37", "progress.workspace", f"integration_branch {ws.get('integration_branch')} is not the newest integration attempt's branch {newest['branch']}"))
         landed = ws.get("landed")
-        if prog.get("next_action", {}).get("kind") == "delivery":
+        if delivering:
             if not landed:
                 f.append(("X37", "progress.workspace", "delivery under worktree isolation with no landed entry"))
             elif landed["kind"] == "fast_forward" and landed["commit"] != newest["commit"]:
                 f.append(("X37", "progress.workspace.landed", "fast_forward commit is not the newest integration commit"))
-    elif prog.get("next_action", {}).get("kind") == "delivery" and not ws.get("landed"):
+    elif delivering and not ws.get("landed"):
         f.append(("X37", "progress.workspace", "delivery under worktree isolation with no landed entry"))
     return f
 

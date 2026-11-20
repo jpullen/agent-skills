@@ -1,4 +1,4 @@
-# Test coverage matrix (kit v3.6.0, 2026-11-20, after runs 13 and 14)
+# Test coverage matrix (kit v3.6.0, 2026-11-20, after runs 13 to 15)
 
 Source of truth for what the calibration apparatus has exercised. The deterministic side — everything checkable without a model — is `python3 harness/run.py` (see `harness/README.md`); its totals line is itself checked by the harness. An interactive version (not published) also exists, with an evidence grid, return-path transition coverage, and Pareto and set-cover views. Runs 1–6 predate the v3 record and are not counted. Keys (Gnn, Inn) name conditions; the set cover targets those whose status is `never` or `partial`, and a condition marked `covered` (G06, for one) is not open.
 
@@ -85,13 +85,13 @@ Source of truth for what the calibration apparatus has exercised. The determinis
 | G24 | Route | lead | a human as lead |  |  |  | never |  |
 | G32 | Workspace | worktree | parallel nodes, fan-in base, integration branch and landing in a real run | 13 | test_worktrees (28) | T-50, T-52 | covered | three nodes, two parallel; fast-forward landing |
 | G33 | Workspace | worktree | a write outside `writes` caught by the scope diff in a real run | 13 | X36, test_worktrees | T-51 | covered | planted (I03); found RF-61 and RF-62 |
-| G34 | Workspace | worktree | resumption verified against git (`worktrees.py verify`) after a lost session | 13 |  | T-53 | partial | a fresh lead planned the resume from the record (2/3) but did not execute it; found RF-64 |
-| G35 | Workspace | worktree | a killed attempt that changed nothing (base as commit, RF-65) in a real run |  | e2e scenario |  | partial | scripted lead only; run 13's killed builder had written its file |
-| G38 | Workspace | delivery | a history gate or squashed landing in a real worktree run (D72) | 14 (the failure, pre-worktree) | e2e scenario, W09 |  | partial | run 14 produced the failure it fixes; scripted only since |
-| G39 | Workspace | delivery | the author check refusing a reset git identity in a real run (D73) | 14 (the failure) | e2e scenario, W10 |  | partial | as G38 |
-| G40 | Return paths | review check | a residue check with a closed element set converging in two reads (D74) | 14 (five non-converging reads) |  |  | never | rule added after run 14 |
-| G37 | Workspace | worktree | a dependent rebuilt on a re-accepted upstream (cause b, `node --carry`, RF-67) in a real run |  | e2e scenario, X35, W08 |  | partial | scripted lead only; no real run has reopened an upstream (also section 2's never-traversed cause-b edge) |
-| G36 | Workspace | worktree | a review gate (mutant, fresh reviewer) on a worktree attempt |  |  |  | never | run 13 used exec gates only |
+| G34 | Workspace | worktree | resumption verified against git (`worktrees.py verify`) after a lost session | 13 (planned), 15 (executed) |  | T-53 | covered | run 15: a fresh opus lead resumed from the record and delivered; every dispatch was relayed (it had no subagent tool) |
+| G35 | Workspace | worktree | a killed attempt that changed nothing (base as commit, RF-65) in a real run | 15 | e2e scenario |  | covered | builder stopped before writing; base as commit |
+| G38 | Workspace | delivery | a history gate or squashed landing in a real worktree run (D72) | 14 (the failure), 15 | e2e scenario, W09 |  | partial | run 15: gate ran on 11 commits, all clean, landing fast-forward; a failing history only in the scripted scenario |
+| G39 | Workspace | delivery | the author check refusing a reset git identity in a real run (D73) | 14 (the failure), 15 | e2e scenario, W10 |  | covered | run 15: commit refused under a reset identity; RF-75 fixed the blocker rule |
+| G40 | Return paths | review check | a residue check with a closed element set converging in two reads (D74) | 14 (five non-converging reads), 15 |  |  | covered | run 15: two fresh readers, same verdict; one run |
+| G37 | Workspace | worktree | a dependent rebuilt on a re-accepted upstream (cause b, `node --carry`, RF-67) in a real run | 15 | e2e scenario, X35, W08 |  | covered | cli rebuilt with --carry after table was reopened; the upstream builder had also flagged the planted field |
+| G36 | Workspace | worktree | a review gate (mutant, fresh reviewer) on a worktree attempt | 15 |  |  | covered | docs node: mutant caught, real passed |
 | G28 | Route | comparison | graph vs direct, pre-registered pair | 12 |  | P1–P4 | partial | one pair; T-44 asks for a second on a different task |
 |  | Incidents (occurred) | harness | Write tool refused to a subagent | 12 × |  |  | covered | unplanned; resumed via message, heredoc save |
 |  | Incidents (occurred) | harness | container restart mid-run (subagents lost) | 12 × |  |  | covered | unplanned, twice; the record replayed from next_action |
@@ -109,7 +109,7 @@ Source of truth for what the calibration apparatus has exercised. The determinis
 |  | Measures | recorded per run | first-attempt reviewer pass rate | 9–12 |  | T-28 | covered |  |
 | G27 | Measures | recorded per run | reviewer repeatability (same brief, N runs) |  |  |  | never | a statistic the kit has never collected |
 
-Totals: 102 conditions — 65 covered, 18 partial, 19 never. Open conditions and injections not yet run (deduplicated): 49. (v3.6 added the X34–X37 row and G32–G37; run 13 covered G32, G33, I03 and I12 and moved G34 and I11 to partial; the harness's scripted scenarios moved G35 to partial and added G37; run 14 added G38–G40. A scripted scenario shows the kit handles a condition, never that a model lead does, so it earns `partial` at most.)
+Totals: 102 conditions — 71 covered, 14 partial, 17 never. Open conditions and injections not yet run (deduplicated): 42. (v3.6 added the X34–X37 row and G32–G37; run 13 covered G32, G33, I03 and I12 and moved G34 and I11 to partial; the harness's scripted scenarios moved G35 to partial and added G37; run 14 added G38–G40; run 15 (FT-31) covered G34–G37, G39, G40 and I11. A scripted scenario shows the kit handles a condition, never that a model lead does, so it earns `partial` at most.)
 
 ## 2. Return-path transition coverage
 
@@ -134,7 +134,7 @@ Reading: every edge that accepts work has been walked; the half of the machine t
 | I08 | Builder and reviewer share a context | Run both in one context (same_context_degraded) | Isolation kind recorded; the run is partial | yes, by construction | never |
 | I09 | LIMIT exhausted mid-graph | Set LIMIT below the graph's minimum runs (e.g. 5 for 4 nodes) | Exit at LIMIT minus the reserve for ordinary work; audits may pass LIMIT (X30); partial delivery names every node's state | yes, deterministic — the unit is node runs | never |
 | I10 | Reserve consumed by a non-audit run | Force a correction when consumed = LIMIT − ceil(LIMIT/10) | X30 rejects; the lead stops or raises with an RF-44 decision | yes | never |
-| I11 | Lead loses context (compaction) | Hand the record directory alone to a fresh lead with 'resume' | D55 same-run resumption: everything needed is in the record | yes — the central claim | partial (run 13, T-53: plan-only resume, 2/3 — the plan was right, its command would have dropped an upstream, RF-64) |
+| I11 | Lead loses context (compaction) | Hand the record directory alone to a fresh lead with 'resume' | D55 same-run resumption: everything needed is in the record | yes — the central claim | covered (run 15: resumed and delivered from the record; ten gaps reported, four of them kit defects, RF-76 to RF-79) |
 | I12 | Container restart / subagent killed | Stop a background builder; delete any partial output | The record is a write-ahead log: nothing dispatched is lost that was not recorded; resume from next_action | yes | covered (run 13, T-55: builder stopped after writing; committed as it stood and gated; found RF-65) |
 | I13 | Tool unavailable (no Write, no fresh subagent, no exec) | Remove the tool from the brief's allowance; exec_available: no | unavailable.tried records the attempt; the gate downgrades or the run is partial | yes | partial (review-only checks in 11, 12) |
 | G04 | A source is defective (cause d) | Plant a contradiction in a frozen source | Open issue source_defect; blocks until a person decides | yes | never |
@@ -178,7 +178,8 @@ Value 1–5 (5 = tests a claim the design rests on); cost 1–5 (1 = one call, 3
 | — | 16 | FT-16 | Opus reviewer vs sonnet on one mutant set | whether tier buys reviewer sensitivity | 3 | 3 | 3 | own run | none open (G06 is covered; this measures what the opus tier adds, not whether it was used) |
 | — | 22 | FT-23 | Partial-output builder → attempt counted, hypothesis recorded | layer 6 bookkeeping | 2 | 1 | 3 | heuristic skip | I01, I02 |
 | done | — | FT-30 | A worktree run with two parallel nodes and a join, one planted out-of-scope write, then a resume after a killed session | whether D67–D70 hold in a real run: isolation, scope diff, convergence, verify on resume | 4 | 3 | 5 | run 13 | G32, G33 (closed); G34 (partial) |
-| new | new | FT-31 | An executed resume: a fresh lead continues run 13's state from the record to delivery, plus a review-gated worktree node, a killed builder that wrote nothing and a reopened upstream | G34 and I11 end to end; G35, G36, G37 | 4 | 3 | 5 | next run | G34, G35, G36, G37, I11 |
+| done | — | FT-31 | An executed resume: a fresh lead continues run 13's state from the record to delivery, plus a review-gated worktree node, a killed builder that wrote nothing and a reopened upstream | G34 and I11 end to end; G35, G36, G37 | 4 | 3 | 5 | run 15 | G34, G35, G36, G37, I11 |
+| new | new | FT-32 | A resume by a lead that can dispatch its own subagents, and a worktree run whose history fails the gate and lands squashed | the two things run 15 did not show | 3 | 3 | 3 | next run | G38 |
 
 Open conditions no test closes: I15 (Subagent token or context exhaustion mid-write). Tokens and time per run are a recording practice for every run rather than a test.
 

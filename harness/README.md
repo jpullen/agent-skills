@@ -38,7 +38,7 @@ It exits 0 only when every step passes. `.github/workflows/harness.yml` runs the
 | person's branch moved | D70 | delivery is `not_landed`, the person's checkout is untouched, the integration branch is delivered by name |
 | conflicting write | D69 | a fan-in over an out-of-scope write conflicts, aborts and leaves a clean tree |
 | history gate and squash | run 14 (RF-73), D72 | a file planted by a failed attempt is absent from the integration tree and present in its history; the history gate fails on that commit; the squashed landing publishes one commit without it |
-| reset git identity | run 14 (RF-74), D73 | a changed git identity makes the commit step refuse; nothing is committed |
+| reset git identity | runs 14 and 15 (RF-74, RF-75), D73 | a changed git identity makes the commit step refuse; the lead restores the given author under a decision and commits again; no commit carries the wrong author |
 
 To add one: write the builders it needs in `e2e/builders.py`, then a test in `test_e2e_run.py` that drives `Lead` and ends with `finish(lead)` or `audits_hold(lead)`.
 

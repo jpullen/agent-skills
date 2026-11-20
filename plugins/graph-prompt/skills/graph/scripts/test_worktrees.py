@@ -549,3 +549,19 @@ def test_gap_w10_finds_a_wrong_author_on_an_attempt_and_on_an_integration_merge(
     rows.insert(2, row("node", "b", 2, {"branch": nb2["branch"], "base": cb, "scope_base": s["base"], "commit": cb2, "changed": ["b.txt"]}, "fail"))
     found = wt("verify", author(record(repo, s, rows, ig["branch"])))[1]["findings"]
     assert sorted(f[:16] for f in found if f.startswith("W10")) == sorted([f"W10 {ig['commit'][:12]}", f"W10 {cb2[:12]}"])
+
+
+def test_rf79_history_forbid_reads_messages_and_authors(repo):
+    """Run 15: the tree check passed on every commit; nothing read the commit messages or author lines a push also publishes."""
+    s = start(repo)
+    n, _ = build(repo, s, "a", 1, s["base"], {"a.txt": "a v1\n"})
+    (pathlib.Path(n["worktree"]) / "a.txt").write_text("a v2\n")
+    sh(n["worktree"], "git", "commit", "-qam", "a: fix per the Falcon review")
+    tip = sh(n["worktree"], "git", "rev-parse", "HEAD")
+    code, h = wt("history", repo, "--base", s["base"], "--commit", tip, "--exec", "true", "--forbid", "falcon|corp\\.example")
+    assert code == 1 and h["failed"] == [tip] and h["commits"][1]["forbidden"] is True and "forbidden" not in h["commits"][0]
+    code, h = wt("history", repo, "--base", s["base"], "--commit", tip, "--forbid", "example\\.invalid")     # the author line
+    assert code == 1 and len(h["failed"]) == 2
+    assert wt("history", repo, "--base", s["base"], "--commit", tip, "--forbid", "nothing-like-this")[0] == 0
+    code, r = wt("history", repo, "--base", s["base"], "--commit", tip, "--forbid", "(")
+    assert code == 2 and "regular expression" in r["error"]

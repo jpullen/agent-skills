@@ -117,7 +117,9 @@ class Lead:
                         "goals": ["SPEC.md S1-S5 hold on the merged deliverable"], "constraints": ["standard library only", "autonomous mode"],
                         "assumptions": [{"id": "a1", "text": "%g of 5000.0 prints 5000", "assumed": "yes"}],
                         "unknowns": [{"id": "u1", "text": "whether cli catches SystemExit", "changes_outcome": False, "disposition": "assumed"}],
-                        "risks": [{"id": "r1", "text": "a builder writes outside its writes", "guarded_by": {"kind": "gate", "node": "parse", "check": "parse-gate"}}]}
+                        "risks": [{"id": "r1", "text": "a builder writes outside its writes", "guarded_by": {"kind": "gate", "node": "parse", "check": "parse-gate"}}],
+                        "inputs": {"task": "build the units CLI to SPEC.md", "output": "units/ and cli.py", "sources": ["SPEC.md"], "scope": ["units/", "cli.py"],
+                                   "mode": "autonomous", "models": MODELS.split(","), "priorities": [], "author": AUTHOR}}
         self.rows = []
         for n in self.NODES:
             self.rows.append(self._node_row_proto(n, 1))
@@ -183,6 +185,11 @@ class Lead:
         self.consumed += 1
         self.progress["subagents"].append({"id": f"scripted-{node}-{n}", "role": "builder", "node": node, "tier": "tier-low"})
         code, c = self.wt("commit", tree, "--message", f"graph({SLUG}): {node} a{n}", "--author", AUTHOR)
+        if code == 3:   # RF-75: the given author's identity is restored under a decision; a second refusal is the blocker
+            name, email = AUTHOR[:-1].split(" <")
+            sh(self.repo, "git", "config", "user.name", name); sh(self.repo, "git", "config", "user.email", email)
+            self.progress["decisions"].append({"kind": "other", "node": node, "reason": f"commit refused: git identity was {c['actual']}; set to the given author and committed again"})
+            code, c = self.wt("commit", tree, "--message", f"graph({SLUG}): {node} a{n}", "--author", AUTHOR)
         commit = c["commit"] if code == 0 else base       # RF-65: an attempt that changed nothing takes its base as its commit
         assert code in (0, 4), c
         sb = self.scope_base[node]
@@ -302,9 +309,9 @@ class Lead:
         self.save()
         return rows, miscited, unfound
 
-    def history_gate(self, absence_check):
+    def history_gate(self, absence_check, forbid="placeholder"):
         """RF-73: run an absence check on every commit a push of the integration branch would publish."""
-        return self.wt("history", self.repo, "--base", self.base, "--commit", self.integration["commit"], "--exec", absence_check)
+        return self.wt("history", self.repo, "--base", self.base, "--commit", self.integration["commit"], "--exec", absence_check, "--forbid", forbid)
 
     def deliver(self, squash=False):
         args = ["land", self.repo, "--commit", self.integration["commit"], "--branch", self.start["person_branch"]]

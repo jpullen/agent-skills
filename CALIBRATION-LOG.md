@@ -984,3 +984,41 @@ Injections, all recorded in the run record as decisions before the step they aff
 | T-63 | D74 term scan is partial | the residue mutant plants one element of the narrowest kind that the term list does not contain (a host name written without its domain); the reader fails it | the reader passes the mutant |
 
 Measures, no threshold: node runs against the limit, subagent tokens by role, the resumed lead's tokens, relayed briefs if any.
+
+## Run 15 — results (2026-11-20; prompt v3.6, FT-31)
+
+Delivered and complete by the record: `validate.py` and `worktrees.py verify` exit 0 (re-run by this session after the resumed lead finished), `coverage.py` 6 exercised / 1 unchecked (S6, gated at the node) / 0 uncovered, `report.py` `status: complete`; `main` fast-forwarded to the integration commit; the tracked tree holds none of the internal names. The first lead ran `table`, `parse` and `cli` (6 node runs); a fresh opus lead, given the run directory, the repository path and the word `resume`, ran `docs`, integration, both audits and delivery. It had no subagent tool, so this session relayed its five briefs and returned the outputs; four returns were verbatim and one (the filter-miss answer) had its closing examples abridged by the relay, marked as such in the file. The record is not published.
+
+| | |
+|---|---|
+| node runs | 15 of 30 as recorded (first lead 6; resumed lead 9, counting its gate, integration and history runs separately — RF-78); reserve: the two audits |
+| subagent tokens | builders 75,534 + 77,310 + 79,538 + 76,813 + 80,613 (one stopped builder not reported); reviewers 77,635 + 79,491 + 80,274; evidence audit 92,130; resumed lead 188,674; the second names reader 78,439 (test harness, not a node run) |
+| relayed briefs | 5 (docs builder, filter-miss question, docs review, docs names, evidence audit) |
+
+### Pre-registered tests
+
+| test | measurement | result |
+|---|---|---|
+| T-56 review gate under worktrees | the reviewer failed the copy without the `ft` entry and passed the real README; the draw (`labels/docs-a1.yaml`, real B / mutant A for both pairs) is named in neither reviewer brief | **pass**. Caveat: the label file is under the run directory, which a reviewer with file access could open; nothing but the brief kept it away |
+| T-57 executed resume | (1) the resumed lead's first `worktrees.py verify` was its 9th shell command, its first `worktrees.py node` its 21st; (2) no accepted node was rerun; (3) delivery reached with `validate.py` 0, `verify` 0, `status: complete` | **pass, 3 / 3**, through a relay for every dispatch. It also reported ten places where the record or the prompt did not say what it needed (RF-76 to RF-79 and the lead errors below) |
+| T-58 killed before writing | `commit` exit 4; row commit = base, verdict fail; attempt 2 stacked on it; record valid | **pass** |
+| T-59 upstream reopened | `cli` a1 failed on the message and its builder invoked the stop rule; cause (b) recorded; `table` a2 passed; `cli` a2 made with `--carry`, scope diff `[cli.py]`, no W08 | **pass**. Weakened as a test of the gates: `table` a1's builder had already reported that its brief contradicted SPEC.md, and the first lead, who planted it, did not act |
+| T-60 history gate | I-d was **not applied**: the resumed lead declined to add the planted line, citing layer_2's "contains exactly" and S7. So no commit held a forbidden term; `history --exec` ran k5 on all 11 commits, all exit 0; disposition `gated`, landing fast-forward | **prediction not met** (squashed was predicted); the disconfirmation did not occur either. The gate ran for real on a clean history; its failing path has only the scripted scenario. The declined injection is the more useful result: a recorded decision did not override a rule of the prompt |
+| T-61 author check | exit 3, nothing committed; the prompt's "blocker" would have stopped every node | **pass, gap confirmed** → RF-75 |
+| T-62 closed residue set | two fresh sonnet readers, same brief and pair: both failed the copy with `build01` and passed the real README; neither added a kind outside the set | **pass, 2 of 2**. The second reader was dispatched by this session; the resumed lead ran one, since nothing in the record asked for two |
+| T-63 term scan is partial | the resumed lead asked the filter-miss question, got `build01` (the host without its domain) among the misses, and planted exactly that in the names mutant; the term scan passes it, both readers failed it | **pass** |
+
+### Findings
+
+| id | finding | disposition |
+|---|---|---|
+| RF-75 | a refused commit was a blocker even when the author is given; in autonomous mode that stops the run | prompt: restore the given identity under a decision and commit again; a second refusal is the blocker; scripted scenario rewritten to show it |
+| RF-76 | the record held no inputs: the resumed lead inferred {SOURCES}, found no {PRIORITIES}, and built the model ladder from the tiers in use; the prompt's "inputs record" named a file that did not exist | schema `framing.inputs` (task, output, sources, scope, mode, models, priorities, author); prompt names it as the inputs record; test |
+| RF-77 | X37 required a `landed` entry once `next_action` is delivery, but the prompt lands after both audits and audit 1 is `validate.py`; the resumed lead carried a placeholder `not_landed` to get through | X37 requires the entry once the evidence audit is recorded; test |
+| RF-78 | "code runs" was read two ways: the first lead counted one run per attempt, the resumed lead counted its gate, integration and history runs separately | prompt: a code run is a code node's script, the integration node, or a history gate; the lead's commit, scope diff and gate on an attempt belong to that attempt |
+| RF-79 | the history gate read each commit's tree; commit messages and author lines, which a push publishes too, were read by hand | `worktrees.py history --forbid REGEX`; prompt's `gated` disposition carries the terms over message and author; test |
+| note | the resumed lead's second gap, a standard-library check that lists three module names, is a defect of this run's acceptance script, not of the kit | none |
+
+Lead errors. First lead (this session): wrote no lessons entries for three accepted nodes; never asked the filter-miss question the prompt requires once per `partial` filter before baseline; recorded no {SOURCES} or {PRIORITIES} (RF-76 made that structural); and let a builder's report of a brief contradicting its source pass because it had planted the contradiction. The resumed lead found and repaired the first two. Resumed lead: ran the CLI in the `docs` worktree without the bytecode guard before dispatching the builder, wrote `__pycache__` there and deleted it by hand — RF-61 again, from the lead's side.
+
+Reading: the resume worked, and the record carried the run — but the fresh lead's list of what the record did not tell it is the result worth keeping. Four of its ten items were kit defects and two were the first lead's omissions that no gate had caught. The injection it refused shows the same thing from the other side: it followed the prompt over a note in the record. What this run still does not show: a lead dispatching its own subagents on resume (every dispatch here was relayed), and a history gate failing on a real run.

@@ -2848,6 +2848,67 @@
               }
             }
           }
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "RF-76: the run's inputs as given, so a session that resumes from the record does not guess them. Written with the rest of framing before any node runs; a resumed run compares it with what it is given",
+          "required": [
+            "task",
+            "output",
+            "sources",
+            "scope",
+            "mode",
+            "models"
+          ],
+          "properties": {
+            "task": {
+              "$ref": "#/$defs/nonempty"
+            },
+            "output": {
+              "$ref": "#/$defs/nonempty"
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/path"
+              },
+              "description": "every {{SOURCES}} path; empty when the task has none"
+            },
+            "scope": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/path"
+              }
+            },
+            "mode": {
+              "enum": [
+                "interactive",
+                "autonomous"
+              ]
+            },
+            "models": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/tier"
+              },
+              "description": "the {{MODELS}} ladder, cheapest first; the value validate.py --models takes"
+            },
+            "priorities": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/nonempty"
+              },
+              "description": "{{PRIORITIES}} in order; empty when none were given"
+            },
+            "author": {
+              "$ref": "#/$defs/nonempty",
+              "description": "{{AUTHOR}} as given, or the literal None"
+            }
+          }
         }
       }
     },
@@ -3054,6 +3115,6 @@
     "X34 when progress.workspace.kind is worktree, every node, acceptance or integration row whose evidence kind is not not_run carries workspace; when progress.workspace is absent or directory, no row carries workspace",
     "X35 rows of one node at one attempt carry identical workspace; two nodes never share a branch; a node row at attempt n > 1 has workspace.base equal to that node's attempt n-1 commit, unless the hypotheses entry for that node and attempt has cause upstream_field (the base was rebuilt from re-accepted upstream commits); acceptance and integration rows at one attempt carry identical workspace; a node row's scope_base equals its attempt-1 base and stays the same on every later attempt, except that an attempt whose hypothesis cause is upstream_field sets a new one, which is not that attempt's base; an acceptance or integration row's scope_base equals its base",
     "X36 on a node row with verdict pass or dissent, every workspace.changed path equals one of the node's writes or lies under a writes entry that ends in '/'",
-    "X37 once acceptance or integration rows carry workspace, progress.workspace.integration_branch is present and equals the branch of the rows at the newest integration attempt; when next_action.kind is delivery under worktree, progress.workspace.landed is present, and a fast_forward landed.commit equals that newest integration commit (a squashed one differs by construction; worktrees.py verify W09 compares its tree)"
+    "X37 once acceptance or integration rows carry workspace, progress.workspace.integration_branch is present and equals the branch of the rows at the newest integration attempt; when next_action.kind is delivery under worktree and the evidence audit is recorded (its verdict is not not_run), progress.workspace.landed is present (landing follows both audits, so audit 1 validates without it), and a fast_forward landed.commit equals that newest integration commit (a squashed one differs by construction; worktrees.py verify W09 compares its tree)"
   ]
 }
