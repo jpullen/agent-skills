@@ -73,5 +73,25 @@
   "op": "or->and",
   "code": "return 5, {\"kind\": \"not_landed\", \"reason\": \"not a fast-forward of \" + a.branch + \": \" + (r.stderr.strip().splitlines() or [\"git refused\"])[-1]}",
   "reason": "changes only the fallback text of the not_landed reason"
+ },
+ {
+  "op": "sorted->list",
+  "code": "tips = sorted({sha for sha in attempts.values() if exists(sha)} | ({integ[1]} if integ and exists(integ[1]) else set()))",
+  "reason": "only the order in which W10 findings are printed changes"
+ },
+ {
+  "op": "ffonly->ff",
+  "code": "r = git(a.repo, \"merge\", \"--ff-only\", new, check=False)",
+  "reason": "the squashed commit is a child of the run base and HEAD was just checked to be the run base, so the merge is a fast-forward or fails either way"
+ },
+ {
+  "op": "and->or",
+  "code": "raise Fail(2, {\"error\": \"--squash needs --base and --message\"})",
+  "reason": "the mutated token is the word 'and' inside an error message"
+ },
+ {
+  "op": "or->and",
+  "code": "return 5, {\"kind\": \"not_landed\", \"reason\": \"the squashed commit could not be checked out: \" + (r.stderr.strip().splitlines() or [\"git refused\"])[-1]}",
+  "reason": "changes only the fallback text of the not_landed reason"
  }
 ]

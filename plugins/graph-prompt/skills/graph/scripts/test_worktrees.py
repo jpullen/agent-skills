@@ -503,3 +503,49 @@ def test_rf73_squash_refuses_a_moved_branch(repo):
     (repo / "c.txt").write_text("person moved on\n"); sh(repo, "git", "commit", "-qam", "person")
     code, ld = wt("land", repo, "--commit", c, "--branch", "main", "--squash", "--base", s["base"], "--message", "m")
     assert code == 5 and ld["kind"] == "not_landed" and "run base" in ld["reason"]
+
+
+# Mutation survivors in the run-14 code, each a test gap -------------------------------------
+
+def test_gap_squash_needs_both_base_and_message_and_a_clean_checkout(repo):
+    s = start(repo)
+    _, c = build(repo, s, "b", 1, s["base"], {"b.txt": "b v1\n"})
+    code, r = wt("land", repo, "--commit", c, "--branch", "main", "--squash", "--base", s["base"])
+    assert code == 2 and "--message" in r["error"]
+    (repo / "b.txt").write_text("the person's uncommitted edit\n")
+    code, ld = wt("land", repo, "--commit", c, "--branch", "main", "--squash", "--base", s["base"], "--message", "m")
+    assert code == 5 and ld["kind"] == "not_landed" and "could not be checked out" in ld["reason"]
+    assert (repo / "b.txt").read_text() == "the person's uncommitted edit\n"
+
+
+def test_gap_w09_squash_with_the_right_parent_and_the_wrong_tree(repo):
+    s = start(repo)
+    _, c = build(repo, s, "b", 1, s["base"], {"b.txt": "b v1\n"})
+    _, ig = wt("integrate", repo, "--slug", SLUG, "--attempt", 1, "--base", s["base"], "--accepted", f"b={c}")
+    other = sh(repo, "git", "commit-tree", s["base"] + "^{tree}", "-p", s["base"], "-m", "not the integration tree")
+    sh(repo, "git", "merge", "-q", "--ff-only", other)
+    d = squash_record(repo, s, ig, c, {"kind": "squashed", "commit": other})
+    assert [f[:3] for f in wt("verify", d)[1]["findings"]] == ["W09"]
+
+
+def test_gap_w10_finds_a_wrong_author_on_an_attempt_and_on_an_integration_merge(repo):
+    s = start(repo)
+    g = repo / ".graph" / SLUG / "graph.yaml"
+    na, ca = build(repo, s, "a", 1, s["base"], {"a.txt": "a v1\n"})
+    nb, cb = build(repo, s, "b", 1, s["base"], {"b.txt": "b v1\n"})
+    w = lambda n, c, p: {"branch": n["branch"], "base": n["base"], "scope_base": n["base"], "commit": c, "changed": [p]}
+    rows = [row("node", "a", 1, w(na, ca, "a.txt")), row("node", "b", 1, w(nb, cb, "b.txt"))]
+
+    def author(d):
+        p = yaml.safe_load((d / "progress.yaml").read_text()); p["workspace"]["author"] = AUTHOR; p["graph"]["accepted"] = ["a", "b"]
+        (d / "progress.yaml").write_text(yaml.safe_dump(p)); return d
+    assert wt("verify", author(record(repo, s, rows)))[1]["findings"] == []     # no integration yet: attempts alone are checked
+    sh(repo, "git", "config", "user.name", "Claude")                             # the identity is reset before integration
+    _, ig = wt("integrate", repo, "--slug", SLUG, "--attempt", 1, "--base", s["base"], "--graph", g, "--accepted", f"a={ca}", f"b={cb}")
+    rows.append(row("integration", None, 1, {"branch": ig["branch"], "base": s["base"], "scope_base": s["base"], "commit": ig["commit"], "changed": ["a.txt", "b.txt"]}))
+    found = wt("verify", author(record(repo, s, rows, ig["branch"])))[1]["findings"]
+    assert len(found) == 1 and found[0].startswith(f"W10 {ig['commit'][:12]}")   # only the merge commit
+    nb2, cb2 = build(repo, s, "b", 2, cb, {"b.txt": "b v2\n"})                   # and a later attempt, outside the integration
+    rows.insert(2, row("node", "b", 2, {"branch": nb2["branch"], "base": cb, "scope_base": s["base"], "commit": cb2, "changed": ["b.txt"]}, "fail"))
+    found = wt("verify", author(record(repo, s, rows, ig["branch"])))[1]["findings"]
+    assert sorted(f[:16] for f in found if f.startswith("W10")) == sorted([f"W10 {ig['commit'][:12]}", f"W10 {cb2[:12]}"])
