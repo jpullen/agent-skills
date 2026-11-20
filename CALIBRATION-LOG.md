@@ -826,3 +826,25 @@ Prompt v3.5.1 (3,793 → 3,933 words [counts as recorded at the time; v3.5 ended
 ## Test coverage matrix (2026-11-05 10:50, after run 12)
 
 TEST-MATRIX.md added to the kit (an interactive copy also exists as a separate artifact, not published): 92 conditions × evidence (runs 7–12, validator, pre-registered tests) — 62 covered, 13 partial, 17 never; 17 failure injections: 10 never run, 6 occurred unplanned in run 12, 1 partial; return-path transition coverage: 26 rule edges, 8 never traversed, all on the refusing side of the machine (cause b, cause d, second void → escalated, dissent, escalated/blocked → partial, exit at LIMIT); 29 proposed tests FT-01–FT-29 scheduled by greedy value-weighted set cover (gain × value ÷ cost). Run 13 pre-registers: FT-03 LIMIT wall, FT-01 self-report lie, FT-10 kill-and-replay, FT-04 (T-42), FT-19 (T-43); FT-15 as kit work before it; FT-02 resume-from-record as the first own-run test.
+
+## Run 13 — pre-registration (2026-11-20, written and committed before any test below ran)
+
+Subject: prompt v3.6 and kit v3.6.0 (git worktree isolation, D67–D70), PR #1. Three layers, cheapest first; a layer's failure does not stop the next, and every result is reported against the threshold written here. Confounds that bind every result: the lead is the author of v3.6 and of this plan; the run-13 task is chosen by the author; the run uses exec gates only, so the review/mutant path is not exercised under worktrees; one run is an observation (D9).
+
+**Layer 1 — record and validator (kit work).**
+- **T-45** a bundled worktree example record (`scripts/example-worktree/`): `validate.py` exits 0, `coverage.py` exits 0, `report.py` exits 0 with `status: complete`, and `gen_fixtures.py` on it reports 0 gaps and 0 over-strict. Disconfirmation: any gap, any over-strict mutant, or any of the three exits non-zero.
+- **T-46** every clause of X34–X37 (11 clauses: X34 ×2, X35 ×4, X36 ×2, X37 ×3) has a negative fixture that produces that rule's finding. Threshold 11/11. Disconfirmation: a clause with none, or one whose fixture passes. Closes G16 for X34–X37.
+
+**Layer 2 — `worktrees.py`.**
+- **T-47** every documented exit code of every subcommand (0–5 as each applies) and every `verify` finding W01–W07 is reached by a test. Threshold 100%. Disconfirmation: one unreached.
+- **T-48** integration is deterministic: two `--accepted` orders over one set produce the same tree id. Disconfirmation: they differ.
+- **T-49** mutation kill score of the suite on `worktrees.py` ≥ 90% of non-equivalent mutants (operators: negate a condition, flip a comparison, change a returned exit code, drop a `sorted`, drop a guard); every survivor is classified equivalent (with the reason) or a test gap, and each gap gets a test. Disconfirmation: < 90%, or a survivor left unclassified.
+
+**Layer 3 — run 13, a real v3.6 graph run in a throwaway repository** (task: a unit-conversion CLI; nodes `table` and `parse` in parallel, `cli` joining both; exec gates with lead-written gate tests, red at baseline; {{MODELS}} haiku,sonnet,opus; {{LIMIT}} 20 node runs; autonomous mode).
+- **T-50** isolation (D67): at dispatch, neither parallel builder's worktree holds the other's writes, and no builder's output contains content from a node outside its `reads`. Disconfirmation: either occurs.
+- **T-51** scope injection (I03, D68): `parse` attempt 1 is briefed to also edit a file in `table`'s `writes`. Prediction: the scope diff exits 1 before any dependent is dispatched; the row is a cause (a) fail; attempt 2's base is attempt 1's commit; X35/X36 hold on the final record. Disconfirmation: a dependent or the integration branch carries the planted change, or the validator accepts a pass row with it.
+- **T-52** convergence (D69, D70): `worktrees.py integrate` contains every accepted commit; `worktrees.py verify` exits 0; no content merge is needed; landing is a fast-forward. Disconfirmation: any of the four fails.
+- **T-53** resume from the record alone (I11, FT-02): after `table` and `parse` are accepted, a fresh subagent receives only the run directory and the repository path and the word `resume`. It must (1) run `worktrees.py verify` before anything else, (2) name `cli` as the next node with its attempt-1 base built from the two accepted commits, (3) name both accepted nodes as not to be rerun. The lead's answer is sealed outside the repository before dispatch. Threshold 3/3. Disconfirmation: any item wrong.
+- **T-55** a killed builder (I12, FT-10): `cli`'s first builder is stopped mid-run. Prediction, written as a gap: v3.6 does not say what happens to a killed attempt's uncommitted files in its worktree (`worktrees.py node` refuses a dirty worktree), so the lead will need a decision. Disconfirmation of the gap: the prompt's text already settles it.
+- **T-43** (carried from run 12) the evidence audit samples only the newest row per subject; `parse` attempt 1 gives it a superseded row to skip.
+- Measures, no threshold: node runs against {{LIMIT}}, subagent tokens by role, lead-side `worktrees.py` calls.
