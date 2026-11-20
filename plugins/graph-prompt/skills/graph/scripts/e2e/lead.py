@@ -21,6 +21,7 @@ SCRIPTS = HERE.parent
 RECORD = SCRIPTS.parent.parent / "graph-record" / "scripts"
 FIXTURE = HERE / "fixture"
 MODELS = "tier-low,tier-mid,tier-high"
+AUTHOR = "e2e lead <lead@e2e.invalid>"
 SLUG = "e2e-units"
 ENV = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
 
@@ -136,7 +137,7 @@ class Lead:
                        "evidence": {"isolation": {"kind": "not_run", "reason": "not reached"}, "rows": 0, "miscited": 0, "unfound": 0, "verdict": "not_run", "notes": []}},
             "hypotheses": [], "usage": {"limit": 20, "unit": "node_runs", "consumed": 0, "lead_tokens": None},
             "next_action": {"kind": "node", "node": "table"},
-            "workspace": {k: self.start[k] for k in ("kind", "repo", "base", "person_branch", "root")}}
+            "workspace": {**{k: self.start[k] for k in ("kind", "repo", "base", "person_branch", "root")}, "author": AUTHOR}}
         self.progress["graph"]["not_started"] = list(self.NODES)
         self.lessons = {"entries": []}
         self.save()
@@ -181,7 +182,7 @@ class Lead:
         builder(tree)
         self.consumed += 1
         self.progress["subagents"].append({"id": f"scripted-{node}-{n}", "role": "builder", "node": node, "tier": "tier-low"})
-        code, c = self.wt("commit", tree, "--message", f"graph({SLUG}): {node} a{n}")
+        code, c = self.wt("commit", tree, "--message", f"graph({SLUG}): {node} a{n}", "--author", AUTHOR)
         commit = c["commit"] if code == 0 else base       # RF-65: an attempt that changed nothing takes its base as its commit
         assert code in (0, 4), c
         sb = self.scope_base[node]
@@ -301,8 +302,16 @@ class Lead:
         self.save()
         return rows, miscited, unfound
 
-    def deliver(self):
-        code, landed = self.wt("land", self.repo, "--commit", self.integration["commit"], "--branch", self.start["person_branch"])
+    def history_gate(self, absence_check):
+        """RF-73: run an absence check on every commit a push of the integration branch would publish."""
+        return self.wt("history", self.repo, "--base", self.base, "--commit", self.integration["commit"], "--exec", absence_check)
+
+    def deliver(self, squash=False):
+        args = ["land", self.repo, "--commit", self.integration["commit"], "--branch", self.start["person_branch"]]
+        if squash:
+            args += ["--squash", "--base", self.base, "--message", f"graph({SLUG}): deliver", "--author", AUTHOR]
+        code, landed = self.wt(*args)
+        self.progress["decisions"].append({"kind": "other", "phase": "delivery", "reason": "history disposition: " + ("squashed" if squash else "not squashed")})
         self.progress["workspace"]["landed"] = landed
         self.progress["next_action"] = {"kind": "delivery"}
         self.lessons = {"entries": [{"node": n, "evidence": f"gate passed at attempt {a}", "tier": "tier-low", "tier_rule": [], "attempt": a,

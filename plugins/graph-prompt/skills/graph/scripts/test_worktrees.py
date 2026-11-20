@@ -433,3 +433,73 @@ def test_w08_previous_attempt_must_be_contained_in_the_next_base(repo):
     d = record(repo, s, [row("node", "a", 1, {"branch": n1["branch"], "base": s["base"], "scope_base": s["base"], "commit": c1, "changed": ["a.txt"]}, "fail"),
                          row("node", "a", 2, {"branch": f"graph/{SLUG}/a/a2", "base": s["base"], "scope_base": s["base"], "commit": s["base"], "changed": []}, "fail")])
     assert any(f.startswith("W08 a#2") for f in wt("verify", d)[1]["findings"])
+
+
+# Run 14 (the publishing run): RF-73 history gate and squash landing, RF-74 author check ---------
+
+AUTHOR = "Test <test@example.invalid>"
+
+
+def test_rf74_commit_refuses_a_reset_git_identity(repo):
+    s = start(repo)
+    code, n = wt("node", repo, "--slug", SLUG, "--node", "a", "--attempt", 1, "--from", s["base"])
+    (pathlib.Path(n["worktree"]) / "a.txt").write_text("a v1\n")
+    sh(repo, "git", "config", "user.name", "Claude")                     # what a container restart left behind
+    code, r = wt("commit", n["worktree"], "--message", "a a1", "--author", AUTHOR)
+    assert code == 3 and r["actual"] == "Claude <test@example.invalid>" and r["expected"] == AUTHOR
+    assert sh(n["worktree"], "git", "log", "--format=%s", "-1") == "init"  # nothing was committed
+    sh(repo, "git", "config", "user.name", "Test")
+    code, r = wt("commit", n["worktree"], "--message", "a a1", "--author", AUTHOR)
+    assert code == 0
+
+
+def test_rf73_history_lists_and_gates_every_commit_a_push_would_publish(repo):
+    s = start(repo)
+    _, c1 = build(repo, s, "b", 1, s["base"], {"b.txt": "b v1\n", "a.txt": "SECRET\n"})   # a failed attempt
+    _, c2 = build(repo, s, "b", 2, c1, {"b.txt": "b v1\n", "a.txt": "a.txt v0\n"})        # the retry removes it
+    code, ig = wt("integrate", repo, "--slug", SLUG, "--attempt", 1, "--base", s["base"], "--accepted", f"b={c2}")
+    assert "SECRET" not in (pathlib.Path(ig["worktree"]) / "a.txt").read_text()            # the tree is clean...
+    code, h = wt("history", repo, "--base", s["base"], "--commit", ig["commit"])
+    assert code == 0 and h["count"] == 2 and h["commits"][0]["paths"] == ["a.txt", "b.txt"] and h["commits"][0]["author"] == AUTHOR
+    code, h = wt("history", repo, "--base", s["base"], "--commit", ig["commit"], "--exec", "! grep -rq SECRET --exclude-dir=.git")
+    assert code == 1 and h["failed"] == [c1]                                               # ...the history is not
+    assert all("history-" not in line for line in sh(repo, "git", "worktree", "list").splitlines())
+    code, h = wt("history", repo, "--base", c1, "--commit", ig["commit"], "--exec", "! grep -rq SECRET --exclude-dir=.git")
+    assert code == 0 and h["count"] == 1
+
+
+def squash_record(repo, s, ig, c, landed, author=None):
+    d = record(repo, s, [row("node", "b", 1, {"branch": f"graph/{SLUG}/b/a1", "base": s["base"], "scope_base": s["base"], "commit": c, "changed": ["b.txt"]}),
+                         row("integration", None, 1, {"branch": ig["branch"], "base": s["base"], "scope_base": s["base"], "commit": ig["commit"], "changed": ["b.txt"]})],
+               ig["branch"], landed)
+    p = yaml.safe_load((d / "progress.yaml").read_text()); p["graph"]["accepted"] = ["b"]
+    if author:
+        p["workspace"]["author"] = author
+    (d / "progress.yaml").write_text(yaml.safe_dump(p))
+    return d
+
+
+def test_rf73_squash_landing_publishes_one_commit(repo):
+    s = start(repo)
+    _, c = build(repo, s, "b", 1, s["base"], {"b.txt": "b v1\n"})
+    _, ig = wt("integrate", repo, "--slug", SLUG, "--attempt", 1, "--base", s["base"], "--accepted", f"b={c}")
+    code, r = wt("land", repo, "--commit", ig["commit"], "--branch", "main", "--squash")
+    assert code == 2 and "--base" in r["error"]
+    code, ld = wt("land", repo, "--commit", ig["commit"], "--branch", "main", "--squash", "--base", s["base"], "--message", "units: deliver", "--author", AUTHOR)
+    assert code == 0 and ld["kind"] == "squashed" and ld["commit"] != ig["commit"]
+    assert sh(repo, "git", "rev-list", f"{s['base']}..main").splitlines() == [ld["commit"]]   # one commit, no attempt history
+    assert (repo / "b.txt").read_text() == "b v1\n"
+    d = squash_record(repo, s, ig, c, ld, AUTHOR)
+    assert wt("verify", d) == (0, {"findings": []})
+    squash_record(repo, s, ig, c, {"kind": "squashed", "commit": s["base"]})                  # the base is not a squash of the integration tree
+    assert any(f.startswith("W09 landed") for f in wt("verify", d)[1]["findings"])
+    squash_record(repo, s, ig, c, ld, "Someone Else <else@example.invalid>")
+    assert any(f.startswith("W10") for f in wt("verify", d)[1]["findings"])
+
+
+def test_rf73_squash_refuses_a_moved_branch(repo):
+    s = start(repo)
+    _, c = build(repo, s, "b", 1, s["base"], {"b.txt": "b v1\n"})
+    (repo / "c.txt").write_text("person moved on\n"); sh(repo, "git", "commit", "-qam", "person")
+    code, ld = wt("land", repo, "--commit", c, "--branch", "main", "--squash", "--base", s["base"], "--message", "m")
+    assert code == 5 and ld["kind"] == "not_landed" and "run base" in ld["reason"]

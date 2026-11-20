@@ -183,3 +183,14 @@ def test_rf62_scope_base_is_attempt_one_base_unless_rebuilt(tmp_path):
     assert "X35" in rules(r, tmp_path)[1]  # RF-67: a rebuilt attempt's scope base is its upstream base, never its own base
     r = worktree_record(); r["checks"]["rows"][3]["workspace"]["scope_base"] = G1
     assert "X35" in rules(r, tmp_path)[1]
+
+
+def test_run14_squashed_landing_and_author(tmp_path):
+    r = worktree_record()
+    r["progress"]["workspace"]["landed"] = {"kind": "squashed", "commit": G3}   # differs from the integration commit by construction
+    r["progress"]["workspace"]["author"] = "A Person <person@example.invalid>"
+    assert rules(r, tmp_path)[0] == 0
+    del r["progress"]["workspace"]["landed"]["commit"]
+    assert "SCHEMA" in rules(r, tmp_path)[1]
+    r = load(); r["progress"]["workspace"] = {"kind": "directory", "reason": "no git", "author": "A <a@example.invalid>"}
+    assert "SCHEMA" in rules(r, tmp_path)[1]

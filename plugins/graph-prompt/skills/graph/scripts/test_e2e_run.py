@@ -14,13 +14,15 @@ def audits_hold(lead):
     assert code == 0, v
 
 
-def finish(lead, expect_landed="fast_forward"):
+def finish(lead, expect_landed="fast_forward", squash=False, after_integration=None):
     code, ig = lead.integrate()
     assert code == 0, ig
+    if after_integration:
+        after_integration(ig)
     audits_hold(lead)
     rows, miscited, unfound = lead.evidence_audit()
     assert rows == 8 and miscited == 0 and unfound == 0
-    code, landed = lead.deliver()
+    code, landed = lead.deliver(squash=squash)
     assert landed["kind"] == expect_landed, landed
     audits_hold(lead)
     cov, rep, status = lead.report()
@@ -128,3 +130,31 @@ def test_conflicting_out_of_scope_write_aborts_the_fan_in(tmp_path):
                       "--graph", lead.run_dir / "graph.yaml", "--upstream", f"table={lead.accepted['table']}", "--upstream", f"parse={bad}")
     assert code == 3 and r["conflicts"] == ["units/table.py"]
     assert sh(lead.root / "cli", "git", "status", "--porcelain").stdout == ""
+
+
+def test_history_gate_fails_and_delivery_is_squashed(tmp_path):
+    """Run 14 (RF-73): every gate read the tree; a push publishes the history. A failed attempt's commit holds the
+    planted file; the history gate finds it and delivery is one squashed commit."""
+    lead = Lead(tmp_path)
+    assert lead.attempt("table", b.table)[0] == "pass"
+    assert lead.attempt("parse", b.parse_out_of_scope)[0] == "fail"
+    assert lead.attempt("parse", b.parse_undo)[0] == "pass"
+    assert lead.attempt("cli", b.cli)[0] == "pass"
+    def history_gate(ig):
+        assert "placeholder" not in (lead.root / "integration" / "units" / "table.py").read_text()   # the tree passes
+        code, h = lead.history_gate("! grep -q placeholder units/table.py 2>/dev/null #")
+        assert code == 1 and h["failed"] == [lead.ws[("parse", 1)]["commit"]]                         # the history does not
+    ig, landed = finish(lead, expect_landed="squashed", squash=True, after_integration=history_gate)
+    published = sh(lead.repo, "git", "rev-list", f"{lead.base}..main").stdout.split()
+    assert published == [landed["commit"]] and landed["commit"] != ig["commit"]
+    assert sh(lead.repo, "git", "log", "--format=%an <%ae>", "-1").stdout.strip() == "e2e lead <lead@e2e.invalid>"
+    assert "placeholder" not in sh(lead.repo, "git", "log", "-p", f"{lead.base}..main").stdout
+
+
+def test_reset_git_identity_blocks_the_commit(tmp_path):
+    """Run 14 (RF-74): a container restart reset the git identity; the commit gate refuses instead of mis-authoring."""
+    lead = Lead(tmp_path)
+    sh(lead.repo, "git", "config", "user.name", "Claude")
+    with pytest.raises(AssertionError, match="git identity is not the run's author"):
+        lead.attempt("table", b.table)
+    assert sh(lead.repo, "git", "rev-list", "--all", "--count").stdout.strip() == "1"   # nothing was committed

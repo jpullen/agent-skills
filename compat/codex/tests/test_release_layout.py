@@ -55,3 +55,33 @@ def test_raw_runner_receipt_covers_executed_core(tmp_path, monkeypatch):
     assert 'graph-record/validate.py' in receipt['files']
     assert 'graph-record/graph-record.schema.json' in receipt['files']
     assert 'compat/codex/scripts/test_release.py' in receipt['files']
+
+
+def test_publishing_repository_layout(tmp_path):
+    marker(tmp_path / 'repo/plugins/graph-prompt/skills/graph-record/scripts/validate.py')
+    (tmp_path / 'repo/compat/codex').mkdir(parents=True)
+    skills = tmp_path / 'repo/plugins/graph-prompt/skills'
+    assert m.kit_root(tmp_path / 'repo/compat/codex') == skills
+    assert m.record_dir(tmp_path / 'repo/compat/codex') == skills / 'graph-record/scripts'
+    marker(tmp_path / 'skill/kit/graph-record/validate.py')
+    assert m.record_dir(tmp_path / 'skill') == tmp_path / 'skill/kit/graph-record'
+
+
+def test_this_checkout_resolves_its_own_kit():
+    here = Path(__file__).resolve().parents[1]
+    assert (m.record_dir(here) / 'validate.py').is_file() and (m.record_dir(here) / 'example').is_dir()
+
+
+def test_repository_runner_receipt_covers_executed_core(tmp_path, monkeypatch):
+    repo = tmp_path / 'repo'
+    marker(repo / 'plugins/graph-prompt/skills/graph-record/scripts/validate.py')
+    marker(repo / 'plugins/graph-prompt/skills/graph/SKILL.md')
+    marker(repo / 'compat/codex/scripts/test_release.py')
+    monkeypatch.setattr(m, '__file__', str(repo / 'compat/codex/scripts/test_release.py'))
+    monkeypatch.setattr(m.sys, 'argv', ['test_release.py', '--output', str(tmp_path / 'results')])
+    monkeypatch.setattr(m.subprocess, 'run', lambda command, **kwargs: SimpleNamespace(returncode=0, stdout='synthetic', stderr=''))
+    assert m.main() == 0
+    receipt = json.loads((tmp_path / 'results/receipt.json').read_text())
+    assert 'repository:graph-record/scripts/validate.py' in receipt['repository_files']
+    assert 'repository:graph/SKILL.md' in receipt['repository_files']
+    assert 'scripts/test_release.py' in receipt['files']

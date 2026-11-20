@@ -19,8 +19,10 @@ Every step here is deterministic, so it runs as a program, never as a subagent
             --from the run base, the upstreams' newest commits, and --carry the
             node's previous commit, merged last. `upstream_base` in the output is
             the commit before the carry: the node's scope base (RF-67).
-  commit    WORKTREE --message M
+  commit    WORKTREE --message M [--author "Name <email>"]
             stage everything in the worktree and commit it; one commit per attempt.
+            With --author, refuse (exit 3) unless git's effective identity is that
+            author: a container restart can reset it (RF-74).
   scope     WORKTREE --base B --commit C (--writes P ... | --graph G --node N)
             list the paths changed between B and C and those outside the node's
             writes. B is the node's scope base: attempt 1's base, or the base of an
@@ -32,9 +34,16 @@ Every step here is deterministic, so it runs as a program, never as a subagent
   verify    RUN_DIR --repo REPO
             check every row's workspace against git: commits exist, base is an
             ancestor, branch tip and changed list agree, integration converges.
-  land      REPO --commit C --branch PB
+  history   REPO --base B --commit C [--exec CMD]
+            list every commit a push of C would publish beyond B, with its author
+            and changed paths. With --exec, check each commit out in a scratch
+            worktree and run CMD there (shell; the tree path is appended); exit 1
+            if CMD fails on any commit (RF-73: gates read the tree, a push
+            publishes the history).
+  land      REPO --commit C --branch PB [--squash --base B --message M [--author A]]
             fast-forward the person's branch to C; anything but a fast-forward is
-            not landed.
+            not landed. With --squash, land one new commit on B that carries C's
+            tree, so no attempt's history is published.
   cleanup   REPO --root DIR
             remove the run's clean worktrees (never --force); branches are kept.
 
@@ -189,7 +198,16 @@ def cmd_node(a):
     return 0, {"worktree": wt, "branch": branch, "base": out(wt, "rev-parse", "HEAD"), "upstream_base": upstream_base}
 
 
+def check_author(repo, author):
+    if not author:
+        return
+    actual = f"{git(repo, 'config', 'user.name', check=False).stdout.strip()} <{git(repo, 'config', 'user.email', check=False).stdout.strip()}>"
+    if actual != author:
+        raise Fail(3, {"error": "git identity is not the run's author", "expected": author, "actual": actual})
+
+
 def cmd_commit(a):
+    check_author(a.worktree, a.author)
     git(a.worktree, "add", "-A")
     if git(a.worktree, "diff", "--cached", "--quiet", check=False).returncode == 0:
         raise Fail(4, {"error": "nothing to commit", "worktree": a.worktree})
@@ -294,17 +312,64 @@ def cmd_verify(a):
             if exists(sha) and not is_ancestor(repo, ws["base"], sha):
                 findings.append(f"W06 {node}: newest accepted commit does not descend from the run base")
     landed = ws.get("landed") or {}
-    if landed.get("kind") == "fast_forward":
+    if landed.get("kind") == "squashed" and exists(landed["commit"]):
+        parents = out(repo, "rev-list", "--parents", "-n", "1", landed["commit"]).split()[1:]
+        same_tree = integ and exists(integ[1]) and out(repo, "rev-parse", landed["commit"] + "^{tree}") == out(repo, "rev-parse", integ[1] + "^{tree}")
+        if parents != [ws.get("base")] or not same_tree:
+            findings.append("W09 landed: the squashed commit is not one commit on the run base carrying the newest integration tree")
+    if ws.get("author") and exists(ws.get("base", "0" * 40)):
+        tips = sorted({sha for sha in attempts.values() if exists(sha)} | ({integ[1]} if integ and exists(integ[1]) else set()))
+        run_commits = out(repo, "rev-list", *tips, "--not", ws["base"]).splitlines() if tips else []
+        for sha in run_commits:
+            who = out(repo, "log", "-1", "--format=%an <%ae>", sha)
+            if who != ws["author"]:
+                findings.append(f"W10 {sha[:12]}: commit author {who} is not the run's author {ws['author']}")
+    if landed.get("kind") in ("fast_forward", "squashed"):
         tip = git(repo, "rev-parse", "--verify", "--quiet", "refs/heads/" + ws.get("person_branch", ""), check=False).stdout.strip()
         if not tip or not exists(landed["commit"]) or not is_ancestor(repo, landed["commit"], tip):
             findings.append(f"W07 landed: {ws.get('person_branch')} does not contain the landed commit")
     return (1 if findings else 0), {"findings": findings}
 
 
+def cmd_history(a):
+    commits = out(a.repo, "rev-list", "--reverse", f"{a.base}..{a.commit}").splitlines()
+    scratch = None
+    if a.exec_:
+        scratch = os.path.join(out(a.repo, "rev-parse", "--path-format=absolute", "--git-common-dir"), "graph-worktrees", f"history-{os.getpid()}")
+        git(a.repo, "worktree", "add", "--detach", scratch, a.base)
+    rows, failed = [], []
+    try:
+        for c in commits:
+            row = {"commit": c, "author": out(a.repo, "log", "-1", "--format=%an <%ae>", c), "subject": out(a.repo, "log", "-1", "--format=%s", c),
+                   "paths": out(a.repo, "diff-tree", "--no-commit-id", "--name-only", "-r", "-m", "--first-parent", c).splitlines()}
+            if scratch:
+                git(scratch, "checkout", "-q", "--detach", c)
+                r = subprocess.run(f"{a.exec_} {scratch}", shell=True, capture_output=True, text=True, cwd=scratch)
+                row["exit"] = r.returncode
+                if r.returncode != 0:
+                    failed.append(c)
+            rows.append(row)
+    finally:
+        if scratch:
+            git(a.repo, "worktree", "remove", "--force", scratch, check=False)  # the scratch tree is this command's own
+    return (1 if failed else 0), {"count": len(rows), "failed": failed, "commits": rows}
+
+
 def cmd_land(a):
     head = git(a.repo, "symbolic-ref", "--quiet", "--short", "HEAD", check=False).stdout.strip()
     if head != a.branch:
         return 5, {"kind": "not_landed", "reason": f"the main checkout is on {head or 'a detached HEAD'}, not {a.branch}"}
+    if a.squash:
+        if not a.base or not a.message:
+            raise Fail(2, {"error": "--squash needs --base and --message"})
+        check_author(a.repo, a.author)
+        if out(a.repo, "rev-parse", "HEAD") != out(a.repo, "rev-parse", a.base + "^{commit}"):
+            return 5, {"kind": "not_landed", "reason": f"{a.branch} is no longer at the run base; a squash onto it would not be a fast-forward"}
+        new = out(a.repo, "commit-tree", a.commit + "^{tree}", "-p", a.base, "-m", a.message)
+        r = git(a.repo, "merge", "--ff-only", new, check=False)
+        if r.returncode != 0:
+            return 5, {"kind": "not_landed", "reason": "the squashed commit could not be checked out: " + (r.stderr.strip().splitlines() or ["git refused"])[-1]}
+        return 0, {"kind": "squashed", "commit": new}
     r = git(a.repo, "merge", "--ff-only", a.commit, check=False)
     if r.returncode != 0:
         return 5, {"kind": "not_landed", "reason": "not a fast-forward of " + a.branch + ": " + (r.stderr.strip().splitlines() or ["git refused"])[-1]}
@@ -339,13 +404,15 @@ def main(argv=None):
     p = sub.add_parser("node"); p.add_argument("repo"); p.add_argument("--slug", required=True); p.add_argument("--node", required=True)
     p.add_argument("--attempt", type=int, required=True); p.add_argument("--from", dest="from_", required=True)
     p.add_argument("--upstream", nargs="*", action="extend"); p.add_argument("--graph"); p.add_argument("--root"); p.add_argument("--carry")
-    p = sub.add_parser("commit"); p.add_argument("worktree"); p.add_argument("--message", required=True)
+    p = sub.add_parser("commit"); p.add_argument("worktree"); p.add_argument("--message", required=True); p.add_argument("--author")
+    p = sub.add_parser("history"); p.add_argument("repo"); p.add_argument("--base", required=True); p.add_argument("--commit", required=True); p.add_argument("--exec", dest="exec_")
     p = sub.add_parser("scope"); p.add_argument("worktree"); p.add_argument("--base", required=True); p.add_argument("--commit", required=True)
     p.add_argument("--writes", nargs="*", action="extend"); p.add_argument("--graph"); p.add_argument("--node")
     p = sub.add_parser("integrate"); p.add_argument("repo"); p.add_argument("--slug", required=True); p.add_argument("--attempt", type=int, required=True)
     p.add_argument("--base", required=True); p.add_argument("--graph"); p.add_argument("--accepted", nargs="+", action="extend", required=True); p.add_argument("--root")
     p = sub.add_parser("verify"); p.add_argument("run_dir"); p.add_argument("--repo")
     p = sub.add_parser("land"); p.add_argument("repo"); p.add_argument("--commit", required=True); p.add_argument("--branch", required=True)
+    p.add_argument("--squash", action="store_true"); p.add_argument("--base"); p.add_argument("--message"); p.add_argument("--author")
     p = sub.add_parser("cleanup"); p.add_argument("repo"); p.add_argument("--root", required=True)
     a = ap.parse_args(argv)
     if getattr(a, "attempt", 1) < 1:

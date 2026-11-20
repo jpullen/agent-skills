@@ -20,6 +20,7 @@ It exits 0 only when every step passes. `.github/workflows/harness.yml` runs the
 | fast | record scripts suite | `validate.py` (schema + X01–X37), `coverage.py`, `report.py`, `gen_fixtures.py` | `plugins/graph-prompt/skills/graph-record/scripts/test_*.py` |
 | fast | worktrees.py suite | every subcommand, exit code and `verify` finding, against throwaway repositories | `…/graph/scripts/test_worktrees.py` |
 | fast | examples | both bundled records validate, cover every rule and report `status: complete` | `…/graph-record/scripts/example*/` |
+| fast | codex adapter suite | the Codex adapter's preflight, import and release-layout tests, against this repository's record tools | `compat/codex/tests/` |
 | standard | end-to-end scenarios | whole v3.6 runs, driven by a scripted lead with scripted builders: real worktrees, real gates, a real record, both audits, landing and cleanup | `…/graph/scripts/test_e2e_run.py`, `e2e/` |
 | full | generated mutants | every schema-derived mutant of both example records is caught or expected to survive: `gaps 0; over-strict 0` | `…/graph-record/scripts/gen_fixtures.py` |
 | full | worktrees.py mutation | every single-site mutant of `worktrees.py` is killed by its suite or listed, with a reason, as equivalent | `…/graph/scripts/mutate_worktrees.py`, `equivalent-mutants.json` |
@@ -36,14 +37,16 @@ It exits 0 only when every step passes. `.github/workflows/harness.yml` runs the
 | late correction | D23, D69 | a stale integration branch fails `verify` (W05); the next attempt starts from the run base |
 | person's branch moved | D70 | delivery is `not_landed`, the person's checkout is untouched, the integration branch is delivered by name |
 | conflicting write | D69 | a fan-in over an out-of-scope write conflicts, aborts and leaves a clean tree |
+| history gate and squash | run 14 (RF-73), D72 | a file planted by a failed attempt is absent from the integration tree and present in its history; the history gate fails on that commit; the squashed landing publishes one commit without it |
+| reset git identity | run 14 (RF-74), D73 | a changed git identity makes the commit step refuse; nothing is committed |
 
 To add one: write the builders it needs in `e2e/builders.py`, then a test in `test_e2e_run.py` that drives `Lead` and ends with `finish(lead)` or `audits_hold(lead)`.
 
 ## What the harness cannot show
 
-It never runs a model. Whether a model follows the prompt as lead, builder or reviewer — a mutant caught, a brief obeyed, a resume planned correctly — is measured by calibration runs, pre-registered and reported in `CALIBRATION-LOG.md`; `TEST-MATRIX.md` lists what those runs have and have not covered. The division of labour: a defect a run finds in the kit becomes a test here (run 13's eight are all in these suites; the ninth, RF-67, was found by the upstream-reopened scenario itself), and a question about model behaviour becomes a pre-registered test there.
+It never runs a model. Whether a model follows the prompt as lead, builder or reviewer — a mutant caught, a brief obeyed, a resume planned correctly — is measured by calibration runs, pre-registered and reported in `CALIBRATION-LOG.md`; `TEST-MATRIX.md` lists what those runs have and have not covered. The division of labour: a defect a run finds in the kit becomes a test here (run 13's eight are all in these suites; the ninth, RF-67, was found by the upstream-reopened scenario itself; run 14's history and author findings each have a scenario), and a question about model behaviour becomes a pre-registered test there.
 
-`compat/codex/` has its own suite and is not part of this harness: it needs a kit imported with `scripts/import_release.py`, which this repository does not carry.
+`compat/codex/` works in place against this repository's kit, and its suite runs in the fast tier. `compat/codex/scripts/test_release.py --output DIR` is its own release runner (the record suite, the example and the generated mutants, with a receipt); the harness's full tier covers the same ground.
 
 ## When a step fails
 

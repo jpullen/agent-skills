@@ -5,7 +5,7 @@ usage: python3 harness/run.py [fast|standard|full] [--only STEP ...] [--list] [-
 
 Tiers (each includes the one before):
   fast      consistency checks, the record scripts' suite, the worktrees.py suite, both bundled
-            examples through validate / coverage / report.                              (~1.5 min)
+            examples through validate / coverage / report, the Codex adapter's suite.                              (~1.5 min)
   standard  + the end-to-end scenarios: a scripted lead drives whole v3.6 runs in throwaway
             git repositories, no model calls. The default; run it before every push.    (~2.5 min)
   full      + the generated-mutant regression of validate.py on both examples and the mutation
@@ -33,6 +33,7 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RECORD = ROOT / "plugins" / "graph-prompt" / "skills" / "graph-record" / "scripts"
 GRAPH = ROOT / "plugins" / "graph-prompt" / "skills" / "graph" / "scripts"
+CODEX = ROOT / "compat" / "codex"
 PY = sys.executable
 PYTEST = [PY, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
 MODELS = "haiku,sonnet,opus"
@@ -55,6 +56,7 @@ def steps(tmp):
         ("record scripts suite", "fast", RECORD, PYTEST, 0, None),
         ("worktrees.py suite", "fast", GRAPH, PYTEST + ["test_worktrees.py"], 0, None),
         *example("example"), *example("example-worktree"),
+        ("codex adapter suite", "fast", CODEX, PYTEST, 0, None),
         ("end-to-end scenarios", "standard", GRAPH, PYTEST + ["test_e2e_run.py"], 0, None),
         fixtures("example"), fixtures("example-worktree"),
         ("worktrees.py mutation", "full", GRAPH, [PY, "-I", "mutate_worktrees.py", "--out", os.path.join(tmp, "mutants.json")], 0, r"unexpected survivors 0; stale allowlist entries 0"),

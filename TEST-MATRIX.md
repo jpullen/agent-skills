@@ -1,4 +1,4 @@
-# Test coverage matrix (kit v3.6.0, 2026-11-20, after run 13)
+# Test coverage matrix (kit v3.6.0, 2026-11-20, after runs 13 and 14)
 
 Source of truth for what the calibration apparatus has exercised. The deterministic side — everything checkable without a model — is `python3 harness/run.py` (see `harness/README.md`); its totals line is itself checked by the harness. An interactive version (not published) also exists, with an evidence grid, return-path transition coverage, and Pareto and set-cover views. Runs 1–6 predate the v3 record and are not counted. Keys (Gnn, Inn) name conditions; the set cover targets those whose status is `never` or `partial`, and a condition marked `covered` (G06, for one) is not open.
 
@@ -9,7 +9,7 @@ Source of truth for what the calibration apparatus has exercised. The determinis
 |  | Task | artifact kind | non-code deliverable | 7, 8, 9, 10 |  |  | covered |  |
 |  | Task | artifact kind | code + contract + test suite | 11, 12 |  | T-36–T-41 | covered |  |
 | G01 | Task | artifact kind | mixed prose and code in one graph |  |  |  | never | every run so far is one kind |
-|  | Task | artifact kind | the kit itself as the task | 11, 12 |  |  | covered | both kit tools came from graph runs |
+|  | Task | artifact kind | the kit itself as the task | 11, 12, 14 |  |  | covered | both kit tools came from graph runs; run 14 published the kit |
 | G02 | Task | task size | 1 node |  |  |  | never | the prompt says one node is a valid graph; never run |
 |  | Task | task size | 2–4 nodes | 11, 12 |  |  | covered |  |
 |  | Task | task size | 5–8 nodes | 7, 9, 10 |  |  | covered | node counts from the log's Nodes: lines |
@@ -81,12 +81,15 @@ Source of truth for what the calibration apparatus has exercised. The determinis
 |  | Route | method | direct plus one independent review | 12 D |  | P3 | covered | post-hoc |
 |  | Route | method | Codex adapter run | Codex | compat/codex tests |  | covered | external lead; their trial replicated RF-39 |
 |  | Route | lead | this assistant as lead | 7–12 |  |  | covered |  |
-| G31 | Route | lead | Codex as lead | Codex |  |  | partial | adapter trials ran on v3.4, not the current prompt |
+| G31 | Route | lead | Codex as lead | Codex | compat/codex tests (74) |  | partial | adapter trials ran on v3.4; the adapter now runs in place against v3.6 but no Codex run has used it |
 | G24 | Route | lead | a human as lead |  |  |  | never |  |
 | G32 | Workspace | worktree | parallel nodes, fan-in base, integration branch and landing in a real run | 13 | test_worktrees (28) | T-50, T-52 | covered | three nodes, two parallel; fast-forward landing |
 | G33 | Workspace | worktree | a write outside `writes` caught by the scope diff in a real run | 13 | X36, test_worktrees | T-51 | covered | planted (I03); found RF-61 and RF-62 |
 | G34 | Workspace | worktree | resumption verified against git (`worktrees.py verify`) after a lost session | 13 |  | T-53 | partial | a fresh lead planned the resume from the record (2/3) but did not execute it; found RF-64 |
 | G35 | Workspace | worktree | a killed attempt that changed nothing (base as commit, RF-65) in a real run |  | e2e scenario |  | partial | scripted lead only; run 13's killed builder had written its file |
+| G38 | Workspace | delivery | a history gate or squashed landing in a real worktree run (D72) | 14 (the failure, pre-worktree) | e2e scenario, W09 |  | partial | run 14 produced the failure it fixes; scripted only since |
+| G39 | Workspace | delivery | the author check refusing a reset git identity in a real run (D73) | 14 (the failure) | e2e scenario, W10 |  | partial | as G38 |
+| G40 | Return paths | review check | a residue check with a closed element set converging in two reads (D74) | 14 (five non-converging reads) |  |  | never | rule added after run 14 |
 | G37 | Workspace | worktree | a dependent rebuilt on a re-accepted upstream (cause b, `node --carry`, RF-67) in a real run |  | e2e scenario, X35, W08 |  | partial | scripted lead only; no real run has reopened an upstream (also section 2's never-traversed cause-b edge) |
 | G36 | Workspace | worktree | a review gate (mutant, fresh reviewer) on a worktree attempt |  |  |  | never | run 13 used exec gates only |
 | G28 | Route | comparison | graph vs direct, pre-registered pair | 12 |  | P1–P4 | partial | one pair; T-44 asks for a second on a different task |
@@ -106,7 +109,7 @@ Source of truth for what the calibration apparatus has exercised. The determinis
 |  | Measures | recorded per run | first-attempt reviewer pass rate | 9–12 |  | T-28 | covered |  |
 | G27 | Measures | recorded per run | reviewer repeatability (same brief, N runs) |  |  |  | never | a statistic the kit has never collected |
 
-Totals: 99 conditions — 65 covered, 16 partial, 18 never. Open conditions and injections not yet run (deduplicated): 46. (v3.6 added the X34–X37 row and G32–G37; run 13 covered G32, G33, I03 and I12 and moved G34 and I11 to partial; the harness's scripted scenarios moved G35 to partial and added G37. A scripted scenario shows the kit handles a condition, never that a model lead does, so it earns `partial` at most.)
+Totals: 102 conditions — 65 covered, 18 partial, 19 never. Open conditions and injections not yet run (deduplicated): 49. (v3.6 added the X34–X37 row and G32–G37; run 13 covered G32, G33, I03 and I12 and moved G34 and I11 to partial; the harness's scripted scenarios moved G35 to partial and added G37; run 14 added G38–G40. A scripted scenario shows the kit handles a condition, never that a model lead does, so it earns `partial` at most.)
 
 ## 2. Return-path transition coverage
 
