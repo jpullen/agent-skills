@@ -35,7 +35,9 @@ def command(root, action, *args):
 def ready_fixture(tmp_path):
     root = tmp_path / 'run'
     root.mkdir()
-    example = ROOT / 'kit/graph-record/example'
+    spec = importlib.util.spec_from_file_location('preflight_layout', SCRIPT)
+    layout = importlib.util.module_from_spec(spec); spec.loader.exec_module(layout)
+    example = layout.record_kit() / 'example'  # assembled package or publishing repository
     rec = {p.stem: yaml.safe_load(p.read_text()) for p in example.glob('*.yaml')}
     rec['progress']['graph'] = {k: (['g1', 'g3'] if k == 'not_started' else []) for k in rec['progress']['graph']}
     rec['progress']['subagents'] = []
@@ -165,6 +167,10 @@ def test_explicit_unchecked_rule_is_reported(tmp_path):
     checks = yaml.safe_load((root / 'checks.yaml').read_text())
     next(r for r in checks['rows'] if r['subject']['kind'] == 'acceptance')['exercises'].remove(rule)
     (root / 'checks.yaml').write_text(yaml.safe_dump(checks))
+    # upstream v3.5 (D61, X32): an unchecked rule is listed in the record before approval, with its reason
+    progress = yaml.safe_load((root / 'progress.yaml').read_text())
+    progress['unchecked_rules'] = [{'id': rule, 'reason': 'out of this qualification scope'}]
+    (root / 'progress.yaml').write_text(yaml.safe_dump(progress))
     prepare(root)
     assert read_json(root / 'review-packet.json')['snapshot']['unchecked_rules'] == {rule: 'out of this qualification scope'}
 

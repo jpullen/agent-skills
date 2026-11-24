@@ -1,0 +1,220 @@
+"""X34-X37 (v3.6, D67-D70): worktree isolation as the record states it. Run: python -m pytest -q test_workspace_rules.py"""
+import copy
+import hashlib
+
+import pytest
+
+from test_v2_rules import load, run
+
+B0, G1, G1B, G3B, G3, IN = (hashlib.sha1(n.encode()).hexdigest() for n in ("base", "g1-a1", "g1-a1-alt", "g3-base", "g3-a1", "integration-a1"))
+SLUG = "2026-11-20-demo"
+
+
+def worktree_record():
+    r = load()
+    rows = r["checks"]["rows"]
+    rows[0]["workspace"] = {"branch": f"graph/{SLUG}/g1/a1", "base": B0, "scope_base": B0, "commit": G1, "changed": ["code/checkrows.py"]}
+    rows[1]["workspace"] = {"branch": f"graph/{SLUG}/g3/a1", "base": G3B, "scope_base": G3B, "commit": G3, "changed": ["README.md"]}
+    integ = {"branch": f"graph/{SLUG}/integration/a1", "base": B0, "scope_base": B0, "commit": IN, "changed": ["README.md", "code/checkrows.py"]}
+    rows[2]["workspace"] = copy.deepcopy(integ)
+    rows[3]["workspace"] = copy.deepcopy(integ)
+    r["progress"]["workspace"] = {"kind": "worktree", "repo": "/work/repo", "base": B0, "person_branch": "main",
+                                  "root": "/work/repo/.git/graph-worktrees/" + SLUG,
+                                  "integration_branch": integ["branch"], "landed": {"kind": "fast_forward", "commit": IN}}
+    return r
+
+
+def rules(rec, tmp_path):
+    code, out = run(rec, tmp_path)
+    return code, {line.split(" ", 1)[0] for line in out.splitlines()}, out
+
+
+def test_worktree_record_holds(tmp_path):
+    code, _, out = rules(worktree_record(), tmp_path)
+    assert code == 0, out
+
+
+def test_directory_record_holds(tmp_path):
+    r = load(); r["progress"]["workspace"] = {"kind": "directory", "reason": "the deliverable is not in a git repository"}
+    assert rules(r, tmp_path)[0] == 0
+
+
+def test_directory_requires_reason_and_forbids_git_fields(tmp_path):
+    r = load(); r["progress"]["workspace"] = {"kind": "directory", "base": B0}
+    code, found, _ = rules(r, tmp_path)
+    assert code == 1 and "SCHEMA" in found
+
+
+def test_commit_must_be_a_full_object_id(tmp_path):
+    r = worktree_record(); r["checks"]["rows"][0]["workspace"]["commit"] = "abc123"
+    assert "SCHEMA" in rules(r, tmp_path)[1]
+
+
+@pytest.mark.parametrize("mutate", ["drop_row_workspace", "workspace_without_worktree"])
+def test_x34_presence(tmp_path, mutate):
+    r = worktree_record()
+    if mutate == "drop_row_workspace":
+        del r["checks"]["rows"][1]["workspace"]
+    else:
+        r["progress"]["workspace"] = {"kind": "directory", "reason": "no git"}
+    code, found, _ = rules(r, tmp_path)
+    assert code == 1 and "X34" in found
+
+
+def test_x34_not_run_rows_need_no_workspace(tmp_path):
+    r = worktree_record()
+    row = r["checks"]["rows"][1]
+    del row["workspace"]
+    row.update(verdict="unresolved", evidence={"kind": "not_run", "reason": "not dispatched yet"})
+    r["progress"]["graph"]["accepted"].remove("g3"); r["progress"]["graph"]["not_started"].append("g3")
+    r["progress"]["next_action"] = {"kind": "node", "node": "g3"}
+    assert "X34" not in rules(r, tmp_path)[1]
+
+
+def test_x35_shared_branch_and_split_integration(tmp_path):
+    r = worktree_record(); r["checks"]["rows"][1]["workspace"]["branch"] = f"graph/{SLUG}/g1/a1"
+    assert "X35" in rules(r, tmp_path)[1]
+    r = worktree_record(); r["checks"]["rows"][3]["workspace"]["commit"] = G1B
+    assert "X35" in rules(r, tmp_path)[1]
+
+
+def retry(r, cause):
+    rows = r["checks"]["rows"]
+    second = copy.deepcopy(rows[0])
+    rows[0]["verdict"] = "fail"; rows[0]["evidence"]["actual_exit"] = 1
+    second["attempt"] = 2
+    second["workspace"] = {"branch": f"graph/{SLUG}/g1/a2", "base": G1B, "scope_base": G3B if cause == "upstream_field" else B0,
+                           "commit": hashlib.sha1(b"g1-a2").hexdigest(), "changed": ["code/checkrows.py"]}
+    rows.insert(1, second)
+    r["progress"]["hypotheses"] = [{"node": "g1", "before_attempt": 2, "cause": cause, "disconfirmation": "the retry passes"}]
+    return r
+
+
+def test_x35_retry_must_start_from_previous_attempt(tmp_path):
+    assert "X35" in rules(retry(worktree_record(), "builder_error"), tmp_path)[1]
+    r = retry(worktree_record(), "builder_error"); r["checks"]["rows"][1]["workspace"]["base"] = G1
+    assert "X35" not in rules(r, tmp_path)[1]
+
+
+def test_x35_rebuilt_base_after_upstream_reopened(tmp_path):
+    assert "X35" not in rules(retry(worktree_record(), "upstream_field"), tmp_path)[1]
+
+
+def test_x36_write_outside_scope(tmp_path):
+    r = worktree_record(); r["checks"]["rows"][1]["workspace"]["changed"].append("code/checkrows.py")
+    code, found, out = rules(r, tmp_path)
+    assert code == 1 and "X36" in found and "code/checkrows.py is outside writes" in out
+
+
+def test_x36_directory_writes_entry(tmp_path):
+    r = worktree_record()
+    g1 = r["graph"]["nodes"][0]; g1["writes"] = ["code/"]
+    r["checks"]["rows"][0]["workspace"]["changed"] = ["code/checkrows.py", "code/helpers.py"]
+    assert "X36" not in rules(r, tmp_path)[1]
+
+
+def test_x36_ignores_failed_attempts(tmp_path):
+    r = retry(worktree_record(), "builder_error")
+    r["checks"]["rows"][1]["workspace"]["base"] = G1
+    r["checks"]["rows"][0]["workspace"]["changed"].append("README.md")
+    assert "X36" not in rules(r, tmp_path)[1]
+
+
+def test_x37_integration_branch_and_landing(tmp_path):
+    r = worktree_record(); r["progress"]["workspace"]["integration_branch"] = f"graph/{SLUG}/integration/a0"
+    assert "X37" in rules(r, tmp_path)[1]
+    r = worktree_record(); del r["progress"]["workspace"]["landed"]
+    assert "X37" in rules(r, tmp_path)[1]
+    r = worktree_record(); r["progress"]["workspace"]["landed"]["commit"] = G3
+    assert "X37" in rules(r, tmp_path)[1]
+    r = worktree_record(); r["progress"]["workspace"]["landed"] = {"kind": "not_landed", "reason": "main moved since the run base"}
+    assert rules(r, tmp_path)[0] == 0
+
+
+# T-46 (run 13): clauses that had no negative fixture at pre-registration ----------
+
+def test_x34_workspace_with_no_progress_workspace(tmp_path):
+    r = worktree_record(); del r["progress"]["workspace"]
+    assert "X34" in rules(r, tmp_path)[1]
+
+
+def test_x35_rows_of_one_node_attempt_must_agree(tmp_path):
+    r = worktree_record()
+    g1 = r["graph"]["nodes"][0]
+    g1["checks"].append({"id": "g1-lint", "type": "exec", "content": "ruff code/checkrows.py", "fails_when": "any finding", "exec_available": "yes"})
+    twin = copy.deepcopy(r["checks"]["rows"][0]); twin["subject"]["check"] = "g1-lint"
+    r["checks"]["rows"].insert(1, twin)
+    assert rules(r, tmp_path)[0] == 0
+    twin["workspace"]["commit"] = G1B
+    assert "X35" in rules(r, tmp_path)[1]
+
+
+def test_x36_prefix_needs_a_trailing_slash(tmp_path):
+    r = worktree_record()
+    r["graph"]["nodes"][0]["writes"] = ["code"]
+    r["checks"]["rows"][0]["workspace"]["changed"] = ["code/checkrows.py"]
+    assert "X36" in rules(r, tmp_path)[1]
+
+
+def test_x37_delivery_without_integration_rows_needs_landing(tmp_path):
+    r = worktree_record()
+    r["checks"]["rows"] = r["checks"]["rows"][:2]
+    del r["progress"]["workspace"]["landed"]
+    assert "X37" in rules(r, tmp_path)[1]
+
+
+def test_rf59_integration_branch_absent_until_integration(tmp_path):
+    r = worktree_record()
+    r["checks"]["rows"] = r["checks"]["rows"][:2]
+    ws = r["progress"]["workspace"]; del ws["integration_branch"]; del ws["landed"]
+    r["progress"]["next_action"] = {"kind": "node", "node": "g3"}
+    code, found, _ = rules(r, tmp_path)
+    assert "SCHEMA" not in found and "X37" not in found
+    r = worktree_record(); del r["progress"]["workspace"]["integration_branch"]
+    assert "X37" in rules(r, tmp_path)[1]
+
+
+def test_rf62_scope_base_is_attempt_one_base_unless_rebuilt(tmp_path):
+    r = retry(worktree_record(), "builder_error"); r["checks"]["rows"][1]["workspace"]["base"] = G1
+    assert "X35" not in rules(r, tmp_path)[1]
+    r["checks"]["rows"][1]["workspace"]["scope_base"] = G1  # measured per attempt: the RF-62 defect
+    assert "X35" in rules(r, tmp_path)[1]
+    # RF-67's case (a scope base holding the node's own earlier work) is verify's W11 now; X35 cannot see ancestry
+    r = worktree_record(); r["checks"]["rows"][3]["workspace"]["scope_base"] = G1
+    assert "X35" in rules(r, tmp_path)[1]
+
+
+def test_run14_squashed_landing_and_author(tmp_path):
+    r = worktree_record()
+    r["progress"]["workspace"]["landed"] = {"kind": "squashed", "commit": G3}   # differs from the integration commit by construction
+    r["progress"]["workspace"]["author"] = "A Person <person@example.invalid>"
+    assert rules(r, tmp_path)[0] == 0
+    del r["progress"]["workspace"]["landed"]["commit"]
+    assert "SCHEMA" in rules(r, tmp_path)[1]
+    r = load(); r["progress"]["workspace"] = {"kind": "directory", "reason": "no git", "author": "A <a@example.invalid>"}
+    assert "SCHEMA" in rules(r, tmp_path)[1]
+
+
+def test_rf77_record_validates_at_audit_one_before_landing(tmp_path):
+    """Landing follows both audits; audit 1 is validate.py itself, run with next_action already at delivery."""
+    r = worktree_record()
+    del r["progress"]["workspace"]["landed"]
+    r["progress"]["audits"]["evidence"] = {"isolation": {"kind": "not_run", "reason": "audit 1 first"}, "rows": 0, "miscited": 0, "unfound": 0, "verdict": "not_run", "notes": []}
+    assert "X37" not in rules(r, tmp_path)[1]
+    r = worktree_record(); del r["progress"]["workspace"]["landed"]          # evidence audit recorded: landing is now required
+    assert "X37" in rules(r, tmp_path)[1]
+
+
+def test_rf76_framing_inputs(tmp_path):
+    r = load()
+    r["framing"]["inputs"] = {"task": "build the validators", "output": "code/ and README.md", "sources": ["spec.md"], "scope": ["code/", "README.md"],
+                              "mode": "interactive", "models": ["haiku", "sonnet", "opus"], "priorities": [], "author": "None"}
+    assert rules(r, tmp_path)[0] == 0
+    del r["framing"]["inputs"]["sources"]
+    assert "SCHEMA" in rules(r, tmp_path)[1]
+
+
+def test_review_no_op_carry_is_not_an_x35_finding(tmp_path):
+    r = retry(worktree_record(), "upstream_field")
+    w = r["checks"]["rows"][1]["workspace"]; w["scope_base"] = w["base"]
+    assert "X35" not in rules(r, tmp_path)[1]

@@ -8,7 +8,7 @@
     {
       "name": "graph-prompt",
       "source": "./plugins/graph-prompt",
-      "description": "Bounded-node DAG execution with gated, mutant-checked reviews and a schema-validated run record."
+      "description": "Bounded-node DAG execution with gated, mutant-checked reviews, git worktree isolation per node attempt, and a schema-validated run record."
     },
     {
       "name": "prompt-authoring",

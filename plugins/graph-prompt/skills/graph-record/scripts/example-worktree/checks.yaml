@@ -1,0 +1,118 @@
+rows:
+- subject:
+    kind: node
+    node: g1
+    check: g1-gate
+  attempt: 1
+  requirement: gate tests pass
+  type: exec
+  isolation:
+    kind: na_exec
+  fails_when: any test fails
+  red_evidence:
+    kind: assertion_failure
+    test_path: tests/test_checkrows.py
+    summary: 15 failed / 3 passed against stub
+    stub_path: code/checkrows.py
+  verdict: pass
+  evidence:
+    kind: exec
+    command: python -m pytest tests/test_checkrows.py -q
+    expected_exit: 0
+    actual_exit: 0
+    output: 18 passed
+  workspace:
+    branch: graph/2026-11-20-demo/g1/a1
+    base: 1405df66cbe219b0bf6355bc3d60361a8376b6b4
+    scope_base: 1405df66cbe219b0bf6355bc3d60361a8376b6b4
+    commit: d7506a624920f712456113c422ad68c3e5c66391
+    changed:
+    - code/checkrows.py
+- subject:
+    kind: node
+    node: g3
+    check: g3-review
+  attempt: 1
+  requirement: README documents every check
+  type: review
+  isolation:
+    kind: fresh_subagent
+    subagent: ab18228248301e74e
+  fails_when: an implemented check has no entry under checks
+  red_evidence:
+    kind: mutant
+    variant_path: README.mutant.md
+    mutation: W7 entry under checks
+  verdict: pass
+  evidence:
+    kind: excerpt
+    sections:
+    - section: usage
+      verdict: pass
+      excerpt: ''
+    - section: checks
+      verdict: pass
+      excerpt: 'W7: a reads entry'
+  workspace:
+    branch: graph/2026-11-20-demo/g3/a1
+    base: 6fb5c1dd64b610eaa3e456af2ea5a94cd60bd9c4
+    scope_base: 6fb5c1dd64b610eaa3e456af2ea5a94cd60bd9c4
+    commit: 54d4a876f4795888ab9c6677f359aba2309c6c97
+    changed:
+    - README.md
+- subject:
+    kind: acceptance
+    item: c1
+  attempt: 1
+  requirement: both scripts exit 0 on clean
+  type: exec
+  isolation:
+    kind: na_exec
+  fails_when: either exits non-zero on clean
+  red_evidence:
+    kind: checks_baseline
+    summary: stubs exit 0 — green at baseline, kept jointly with c2
+  verdict: pass
+  evidence:
+    kind: exec
+    command: bash integration.sh
+    expected_exit: 0
+    actual_exit: 0
+    output: C1 pass
+  exercises:
+  - s-namematch
+  - s-verdicts
+  workspace:
+    branch: graph/2026-11-20-demo/integration/a1
+    base: 1405df66cbe219b0bf6355bc3d60361a8376b6b4
+    scope_base: 1405df66cbe219b0bf6355bc3d60361a8376b6b4
+    commit: 44a4dddf74c10523019f2df1fa68eda5ace7b4fd
+    changed:
+    - README.md
+    - code/checkrows.py
+- subject:
+    kind: integration
+  attempt: 1
+  requirement: all acceptance items pass
+  type: exec
+  isolation:
+    kind: na_exec
+  fails_when: any item fails
+  red_evidence:
+    kind: checks_baseline
+    summary: 29 failed / 5 passed
+  verdict: pass
+  evidence:
+    kind: exec
+    command: bash integration.sh
+    expected_exit: 0
+    actual_exit: 0
+    output: all pass
+  workspace:
+    branch: graph/2026-11-20-demo/integration/a1
+    base: 1405df66cbe219b0bf6355bc3d60361a8376b6b4
+    scope_base: 1405df66cbe219b0bf6355bc3d60361a8376b6b4
+    commit: 44a4dddf74c10523019f2df1fa68eda5ace7b4fd
+    changed:
+    - README.md
+    - code/checkrows.py

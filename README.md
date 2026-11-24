@@ -16,7 +16,7 @@ To pick up a newer release, run `/plugin marketplace update jpullen`; Claude Cod
 
 | Skill | Plugin | How it is invoked | Purpose |
 |---|---|---|---|
-| `graph` | `graph-prompt` | You type `/graph-prompt:graph <task>`. It has `disable-model-invocation: true`, so Claude does not start it on its own. | Run a multi-step deliverable as a bounded-node graph with gated reviews and a validated run record that another session can resume. |
+| `graph` | `graph-prompt` | You type `/graph-prompt:graph <task>`. It has `disable-model-invocation: true`, so Claude does not start it on its own. | Run a multi-step deliverable as a bounded-node graph with gated reviews, one git worktree per node attempt, and a validated run record that another session can resume. |
 | `graph-record` | `graph-prompt` | Claude loads it when you ask to validate a run record, check whether it is complete, check rule coverage, or produce the delivery report, or when you point at a run directory holding `graph.yaml`, `checks.yaml` and `progress.yaml`. | Validate, report on, and check rule coverage of a graph-prompt run record, using `validate.py`, `coverage.py` and `report.py`. |
 | `prompt-authoring` | `prompt-authoring` | Claude loads it when you ask to write, edit, review or audit a CLAUDE.md, SKILL.md, system prompt, rule set, plan template or experiment contract. | Author or revise durable AI instructions to the Prompt Authoring Guide's format rules, or audit existing instructions against them. |
 | `pipeline-001` | `prompt-authoring` | You type `/prompt-authoring:pipeline-001`. It has `disable-model-invocation: true`. | Run a staged structured analysis (frame, route expertise, check prior art, analyze, synthesize, adversarial critique, refine, coherence review) on a substantive analytical or design problem. |
@@ -25,11 +25,13 @@ To pick up a newer release, run `/plugin marketplace update jpullen`; Claude Cod
 
 **Reviews are tested before they are trusted.** Each review gate gets two unlabeled variants in random order: the real artifact and a copy with one planted defect. The review counts only if it fails the planted copy and passes the real one; a surviving defect voids it ([`graph` SKILL.md](plugins/graph-prompt/skills/graph/SKILL.md)).
 
-**The run record is checked by code, not by reading.** A [JSON schema](plugins/graph-prompt/skills/graph/references/graph-record.schema.json), the cross-file rules in `validate.py`, `coverage.py` and `report.py` read the record. `gen_fixtures.py` generates mutated records to test the validator: on the bundled example it made 596, of which 591 were expected to be caught and all 591 were, with no gaps. The scripts' 370 tests pass ([scripts](plugins/graph-prompt/skills/graph-record/scripts/)).
+**The run record is checked by code, not by reading.** A [JSON schema](plugins/graph-prompt/skills/graph/references/graph-record.schema.json), the cross-file rules in `validate.py`, `coverage.py` and `report.py` read the record. `gen_fixtures.py` generates mutated records to test the validator: on the bundled example it made 596, of which 591 were expected to be caught and all 591 were, with no gaps. The scripts' 394 tests pass ([scripts](plugins/graph-prompt/skills/graph-record/scripts/)).
+
+**Parallel work is isolated in git worktrees and converges by merge.** When the deliverable lives in a git repository, every node attempt runs on its own branch in its own worktree, so parallel builders never see each other's half-finished output and every attempt, failed or accepted, stays a commit. Each node gate includes a scope diff that fails any change outside the node's declared `writes`. Dependent nodes start from a merge of their accepted upstream commits, the integration node runs on a branch that merges every accepted node in topological order from the run base, and delivery fast-forwards your branch to it or reports why it could not. Because every attempt is a commit, a landing also records what happens to that history: a check run over every commit a push would publish, or a squash to one commit. A git conflict is treated as a write outside `writes`, never auto-resolved. The steps run as one program, [`worktrees.py`](plugins/graph-prompt/skills/graph/scripts/worktrees.py) (48 unit tests and 8 end-to-end scenarios against throwaway repositories; every single-site mutant is killed or listed as equivalent with a reason), and `worktrees.py verify` checks the run record against git. Two calibration runs have used it (run 13, three nodes; run 15, four nodes, resumed and delivered by a fresh lead); it found eight defects in the kit, and the permanent harness built from it found a ninth; all are fixed and listed in [CALIBRATION-LOG.md](CALIBRATION-LOG.md).
 
 **Failures have named causes and a budget.** A retry records one of four causes (builder error, upstream field wrong, check wrong, source defect); a node fails on its third failed attempt; the last tenth of the run limit is reserved; a fresh-context evidence audit re-checks cited commands ([`graph` SKILL.md](plugins/graph-prompt/skills/graph/SKILL.md)).
 
-**Calibrated in the open.** [CALIBRATION-LOG.md](CALIBRATION-LOG.md) records 12 numbered runs with results, failures and costs.
+**Calibrated in the open.** [CALIBRATION-LOG.md](CALIBRATION-LOG.md) records 15 numbered runs with results, failures and costs.
 
 **The authoring guide has history.** The [rule-design standards](plugins/prompt-authoring/skills/prompt-authoring/references/rule-design-standards.md) are at v2.9.0, with a changelog back to v1.0.0, and [PIPELINE-001](plugins/prompt-authoring/skills/pipeline-001/SKILL.md) is a staged analysis that includes prior-art, adversarial-critique and coherence-review stages.
 
@@ -41,7 +43,7 @@ A graph run writes its state to a directory of YAML files, by default `.graph/<d
 
 ## Requirements
 
-`python3` and `pyyaml` for the three record scripts; `jsonschema` as well for `validate.py` (see [the graph-record skill](plugins/graph-prompt/skills/graph-record/SKILL.md)). For example: `pip install pyyaml jsonschema`.
+`python3` and `pyyaml` for the three record scripts and `worktrees.py`, which also needs `git` 2.31 or later; `jsonschema` as well for `validate.py` (see [the graph-record skill](plugins/graph-prompt/skills/graph-record/SKILL.md)). For example: `pip install pyyaml jsonschema`.
 
 ## Repository layout
 
@@ -51,7 +53,8 @@ plugins/
   graph-prompt/        plugin: skills graph and graph-record, CHANGELOG.md
   prompt-authoring/    plugin: skills prompt-authoring and pipeline-001, CHANGELOG.md
 compat/
-  codex/               adapter for running the graph prompt under Codex
+  codex/               adapter for running the graph prompt under Codex (not a plugin; works in place)
+harness/               one-command test harness (python3 harness/run.py); see harness/README.md
 CALIBRATION-LOG.md     the author's calibration runs and decisions
 TEST-MATRIX.md         what the calibration runs have and have not exercised
 ATTRIBUTION.md       lineage and prior art
@@ -68,8 +71,9 @@ Open a run record when the work has outputs that must be accepted before other o
 ## More
 
 - [CALIBRATION-LOG.md](CALIBRATION-LOG.md): the decisions and results behind each prompt version. It is the author's own runs, not an independent evaluation. In its run 12 entry the graph route measured once at 16 times the subagent tokens of a direct build, on one pair of runs.
+- [harness/README.md](harness/README.md): how to test the kit (`python3 harness/run.py`), what each tier shows, and what only a calibration run can show.
 - [TEST-MATRIX.md](TEST-MATRIX.md): the conditions the calibration apparatus has covered, partly covered and never covered.
 - [ATTRIBUTION.md](ATTRIBUTION.md): where the graph prompt came from, and the prior art the authoring guide cites.
 - [LICENSE](LICENSE): MIT.
 - Changelogs: [graph-prompt](plugins/graph-prompt/CHANGELOG.md), [prompt-authoring](plugins/prompt-authoring/CHANGELOG.md).
-- [compat/codex/](compat/codex/): an adapter for running the graph prompt under Codex.
+- [compat/codex/](compat/codex/): an adapter for running the graph prompt under Codex. It is not a plugin (nothing installs it); it works in place against this repository's v3.6 prompt and record tools, and its 74 tests run in the harness. No Codex run has used v3.6.
