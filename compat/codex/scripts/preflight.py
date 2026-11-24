@@ -46,6 +46,27 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def repository_kit():
+    """The kit beside this adapter when it is used in place, in the publishing repository:
+    compat/codex/ next to plugins/graph-prompt/skills/. None in an assembled package."""
+    skills = PACKAGE.parent.parent / "plugins/graph-prompt/skills"
+    if PACKAGE.name == "codex" and PACKAGE.parent.name == "compat" and (skills / "graph-record/scripts/validate.py").is_file():
+        return skills
+    return None
+
+
+def record_kit():
+    """Directory holding validate.py, the schema and example/: an assembled package's kit/graph-record,
+    else the publishing repository's graph-record scripts."""
+    assembled = PACKAGE / "kit/graph-record"
+    if (assembled / "validate.py").is_file():
+        return assembled
+    skills = repository_kit()
+    require(skills is not None, "no graph-record validator: assemble the package (references/updating.md) "
+                                "or use compat/codex inside the publishing repository")
+    return skills / "graph-record/scripts"
+
+
 def toolchain_fingerprint():
     ignored = {"__pycache__", ".pytest_cache", ".git", ".DS_Store"}
     result = {}
@@ -59,6 +80,14 @@ def toolchain_fingerprint():
             continue
         require(PACKAGE in path.resolve().parents, "package file escapes selected package: " + str(path))
         result[path.relative_to(PACKAGE).as_posix()] = digest(path)
+    skills = repository_kit()
+    if skills is not None and not (PACKAGE / "kit/graph-record/validate.py").is_file():
+        # used in place: the prompt and the record scripts are part of the selected toolchain too
+        selected = [skills / "graph/SKILL.md", *sorted((skills / "graph/scripts").glob("*.py")),
+                    *sorted((skills / "graph-record/scripts").glob("*.py")), skills / "graph-record/scripts/graph-record.schema.json"]
+        for path in selected:
+            if path.is_file() and not path.name.startswith("test_"):
+                result["repository:" + path.relative_to(skills).as_posix()] = digest(path)
     return result
 
 
@@ -118,7 +147,7 @@ def environment():
 def load_record(root, models, artifacts):
     # Reuse the maintained validator, including its duplicate-YAML-key behavior.
     import importlib.util
-    path = PACKAGE / "kit/graph-record/validate.py"
+    path = record_kit() / "validate.py"
     spec = importlib.util.spec_from_file_location("dispatch_validator", path)
     validator = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(validator)

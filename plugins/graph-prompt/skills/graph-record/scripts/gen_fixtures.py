@@ -7,7 +7,8 @@ Starting from a valid record, generate one mutant per (leaf, operation):
   enum     — replace an enumerated value with one outside the set (enum/const leaves only)
   dup      — for arrays of objects with an `id` field: duplicate the first element
 For each mutant, derive the EXPECTED outcome from the schema alone:
-  delete   → caught iff the leaf is in its parent's `required` (or a conditional then-required that fires for this record)
+  delete   → caught iff the leaf is in its parent's `required` (or a conditional then-required that fires for this record),
+             or an x-crossfile rule listed in CROSSFILE_REQUIRED requires it for this record (run 13, T-45)
   type     → caught always (every leaf has a type)
   enum     → caught always
   dup      → caught iff the array is uniqueItems or the item has an `id` (X22)
@@ -111,6 +112,28 @@ def set_path(rec, path, value, delete=False):
         cur[path[-1]] = value
 
 
+def _ws_kind(rec):
+    return ((rec.get("progress") or {}).get("workspace") or {}).get("kind")
+
+
+# Leaves the schema marks optional but a stated x-crossfile rule requires for some records. Each entry:
+# (rule, path predicate, record predicate). Without these, deleting such a leaf is wrongly expected to survive.
+CROSSFILE_REQUIRED = [
+    ("X34", lambda p: len(p) == 4 and p[:2] == ["checks", "rows"] and p[3] == "workspace",
+     lambda rec, p: _ws_kind(rec) == "worktree" and rec["checks"]["rows"][p[2]]["evidence"]["kind"] != "not_run"),
+    ("X34", lambda p: p == ["progress", "workspace"],
+     lambda rec, p: any("workspace" in r for r in rec["checks"]["rows"])),
+    ("X37", lambda p: p == ["progress", "workspace", "landed"],
+     lambda rec, p: _ws_kind(rec) == "worktree" and rec["progress"]["next_action"]["kind"] == "delivery"),
+    ("X37", lambda p: p == ["progress", "workspace", "integration_branch"],
+     lambda rec, p: any("workspace" in r and r["subject"]["kind"] != "node" for r in rec["checks"]["rows"])),
+]
+
+
+def crossfile_required(rec, path):
+    return any(match(path) and applies(rec, path) for _, match, applies in CROSSFILE_REQUIRED)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("base")
@@ -137,7 +160,7 @@ def main():
             t = t[0]
         # delete
         if isinstance(key, str):
-            expect = key in effective_required(schema, pschema, pinst)
+            expect = key in effective_required(schema, pschema, pinst) or crossfile_required(rec0, list(path))
             mutants.append(("delete", path, None, True, expect))
         # type
         if t in WRONG_TYPE and "const" not in node:
